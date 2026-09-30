@@ -1,0 +1,6 @@
+.next
+node_modules
+pnpm-lock.yaml
+next-env.d.ts
+src/data/catalog.ts
+src/components/ui

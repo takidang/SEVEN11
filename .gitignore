@@ -1,0 +1,19 @@
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+*.swp
+
+# env
+.env
+.env.local
+.env.*.local
+
+# root-level tooling
+/node_modules
+
+# Claude Code local settings
+.claude/settings.local.json
+
+# .NET (đợt sau mới đẩy)
+/apps/dotnet/
