@@ -21,11 +21,12 @@
                 <p class="small muted"><span class="tabular nowrap">@Fmt.Phone(c.Phone)</span> · <span class="nowrap">Thành viên từ @c.JoinedAt.ToString("MM/yyyy", System.Globalization.CultureInfo.InvariantCulture)</span></p>
             </div>
         </div>
-        <dl class="acct-stats">
+        @* Ba con số in như một mẩu hoá đơn: chấm dẫn dòng, chữ đơn cách, mép dưới răng cưa. *@
+        <div class="receipt-wrap acct-receipt"><dl class="acct-stats receipt">
             <div><dt>Đơn đã mua</dt><dd class="tabular">@Fmt.Num(c.OrderCount)</dd></div>
             <div><dt>Tổng chi tiêu</dt><dd class="tabular">@Fmt.Vnd(c.TotalSpent)</dd></div>
             <div><dt>Sao vàng</dt><dd><span class="stars">@ShopIcons.Svg("star", 16) @Fmt.Num(c.Stars)</span><span class="sr-only"> sao vàng</span></dd></div>
-        </dl>
+        </dl></div>
     </div>
 
     <partial name="_MemberCard" model="(c, Model.Keep)" />

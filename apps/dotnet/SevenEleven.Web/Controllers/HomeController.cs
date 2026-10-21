@@ -17,14 +17,14 @@ public class HomeController(AppDbContext db, ShopContext shop, CustomerAdminServ
     /// <summary>"Gợi ý cho bạn" — lối tắt vào danh mục, ảnh là các sản phẩm có ảnh tách nền sạch.</summary>
     private static readonly Collection[] Collections =
     [
-        new("Trà sữa & cà phê", ShopUrls.Category("tra-sua"), "tint-orange", ["p0014", "p0010", "p0021"]),
-        new("Món ngon nhà Bảy", ShopUrls.Category("mon-ngon"), "tint-brand", ["p0047", "p0031", "p0044"]),
-        new("Bánh mì & toastie", ShopUrls.Category("cac-loai-banh"), "tint-sale", ["p0079", "p0070", "p0086"]),
-        new("Snack ăn xế", ShopUrls.Category("do-an-vat"), "tint-red", ["p0114", "p0122", "p0113"]),
-        new("Bia lạnh 24/7", ShopUrls.Category("do-uong-co-con", "bia"), "tint-info", ["p0224", "p0221", "p0223"], true),
-        new("Sữa & sữa chua", ShopUrls.Category("san-pham-tu-sua"), "tint-fresh", ["p0146", "p0161", "p0162"], true),
-        new("Nước giải khát", ShopUrls.Category("do-uong-dong-chai"), "tint-orange", ["p0187", "p0182", "p0197"], true),
-        new("Chăm sóc cá nhân", ShopUrls.Category("cham-soc-ca-nhan"), "tint-surface", ["p0295", "p0301", "p0286"], true),
+        new("Trà sữa & cà phê", ShopUrls.Category("tra-sua"), ["p0014", "p0010", "p0021"]),
+        new("Món ngon nhà Bảy", ShopUrls.Category("mon-ngon"), ["p0047", "p0031", "p0044"]),
+        new("Bánh mì & toastie", ShopUrls.Category("cac-loai-banh"), ["p0079", "p0070", "p0086"]),
+        new("Snack ăn xế", ShopUrls.Category("do-an-vat"), ["p0114", "p0122", "p0113"]),
+        new("Bia lạnh 24/7", ShopUrls.Category("do-uong-co-con", "bia"), ["p0224", "p0221", "p0223"], true),
+        new("Sữa & sữa chua", ShopUrls.Category("san-pham-tu-sua"), ["p0146", "p0161", "p0162"], true),
+        new("Nước giải khát", ShopUrls.Category("do-uong-dong-chai"), ["p0187", "p0182", "p0197"], true),
+        new("Chăm sóc cá nhân", ShopUrls.Category("cham-soc-ca-nhan"), ["p0295", "p0301", "p0286"], true),
     ];
 
     public IActionResult Index(string? khung)

@@ -263,22 +263,30 @@
         </ul></div>
     </section>
 
+    @* Cùng chất liệu với trang thành viên: bốn tấm thẻ xoè trên mặt quầy, quyền lợi in như mẩu hoá đơn. *@
     <aside class="benefits">
-        <span class="benefits-stripe orange" aria-hidden="true"></span>
-        <span class="benefits-stripe red" aria-hidden="true"></span>
         <div class="benefits-top">
-            <span class="benefits-logo"><img src="~/img/logo-wordmark.png" alt="7-Eleven" /></span>
-            <h2>Mua sắm – nâng hạng, ưu đãi mỗi ngày</h2>
+            <h2><span>Mua sắm,</span> <span>nâng hạng</span></h2>
             <p>Đăng nhập để nhận ưu đãi thành viên, tích sao vàng đổi voucher và theo dõi đơn hàng.</p>
         </div>
-        <ul class="benefits-list">
-            <li><span>@ShopIcons.Svg("cup-soda", 18)</span>Voucher đồ uống mỗi tháng, giảm đến @Fmt.Vnd(diamond.DrinkVoucher) mỗi ly</li>
-            <li><span>@ShopIcons.Svg("star", 18)</span>Cứ @Fmt.Vnd(StarService.StarSpend) chi tiêu được 1 sao vàng, đổi voucher tới @Fmt.Vnd(topReward.Value)</li>
-            <li><span>@ShopIcons.Svg("cake", 18)</span>Tháng sinh nhật giảm đến @Math.Round(diamond.BirthdayDrinkDiscount * 100)% đồ uống</li>
-            <li><span>@ShopIcons.Svg("bike", 18)</span>Giao nhanh 24 phút, lưu địa chỉ và theo dõi đơn theo thời gian thực</li>
-        </ul>
+        <div class="benefits-cards" aria-hidden="true">
+            @for (var i = 0; i < MembershipService.Order.Length; i++)
+            {
+                var min = MembershipService.Info(MembershipService.Order[i]).MinSpend;
+                var card = new TierCardModel(MembershipService.Order[i], Note: min > 0 ? $"Tích luỹ từ {Fmt.Vnd(min)}" : "Ngay khi đăng ký");
+                <div class="mhero-card" style="--k:@i"><partial name="_TierCard" model="card" /></div>
+            }
+        </div>
+        <div class="receipt-wrap">
+            <dl class="receipt benefits-list">
+                <div><dt>Voucher đồ uống</dt><dd>−@Fmt.Num(diamond.DrinkVoucher) ₫/ly</dd></div>
+                <div><dt>1 sao vàng</dt><dd>mỗi @Fmt.Compact(StarService.StarSpend)</dd></div>
+                <div><dt>Sinh nhật giảm</dt><dd>@Math.Round(diamond.BirthdayDrinkDiscount * 100)% đồ uống</dd></div>
+                <div><dt>Giao hàng</dt><dd>24 phút</dd></div>
+            </dl>
+        </div>
         <div class="benefits-foot">
-            <a href="@ShopUrls.Membership">Xem chương trình thành viên @ShopIcons.Svg("arrow-right", 16)</a>
+            <a href="@ShopUrls.Membership">Xem chương trình thành viên</a>
             <p>Có 4 hạng Đồng, Bạc, Vàng, Kim cương. Chi tiêu tích luỹ đủ mốc là lên hạng ngay.</p>
         </div>
     </aside>

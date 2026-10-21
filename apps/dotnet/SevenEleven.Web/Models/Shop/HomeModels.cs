@@ -11,8 +11,14 @@ namespace SevenEleven.Web.Models.Shop;
 /// </summary>
 public sealed record ShelfItem(Product Product, int SalePrice, int Price, int Facings = 1);
 
+/// <summary>
+/// Thẻ thành viên bằng nhựa (_TierCard): có <see cref="Name"/> là thẻ của khách (tên, số điện thoại, mã vạch),
+/// không có thì là thẻ mẫu của hạng với một dòng <see cref="Note"/>.
+/// </summary>
+public sealed record TierCardModel(MemberTier Tier, string? Name = null, string? Phone = null, string? Note = null, string? Css = null);
+
 /// <summary>Ô "Gợi ý cho bạn" dẫn vào một danh mục.</summary>
-public sealed record Collection(string Title, string Href, string Tint, string[] PhotoIds, bool Tall = false);
+public sealed record Collection(string Title, string Href, string[] PhotoIds, bool Tall = false);
 
 public sealed class HomeModel
 {

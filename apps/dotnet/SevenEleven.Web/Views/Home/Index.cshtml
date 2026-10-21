@@ -99,28 +99,24 @@
 
     <section>
         <div class="sec-head"><h2>Gợi ý cho bạn</h2></div>
-        <div class="scroll-row" data-rail>
+        @* Một dãy kệ nối nhau, mỗi ngăn một nhóm hàng, tên nhóm kẹp ở mép kệ như ở phần đầu trang. *@
+        <div class="scroll-row coll-aisle" data-rail>
             <div class="scroll-row-track" data-rail-track>
                 <div class="scroll-row-items" role="group" aria-label="Gợi ý cho bạn">
                     @foreach (var (c, tilePhotos) in Model.Collections)
                     {
-                        var zoom = c.Tall ? "z110" : "z125";
-                        <a class="coll" href="@c.Href">
-                            <div class="coll-art @c.Tint" aria-hidden="true">
-                                @if (tilePhotos.Count > 0)
+                        // Món chính đứng giữa, hai món nhỏ hai bên.
+                        var row = new[] { (1, "side"), (0, "mid"), (2, "side") }.Where(x => x.Item1 < tilePhotos.Count);
+                        <a class="coll@(c.Tall ? " coll-tall" : null)" href="@c.Href">
+                            <span class="coll-bay" aria-hidden="true">
+                                @foreach (var (at, size) in row)
                                 {
-                                    <div class="plate coll-big"><img src="@ShopImages.Url(tilePhotos[0].Image, 110)" alt="" class="@zoom" loading="lazy" /></div>
+                                    // Ảnh có dải chữ ở đáy (ly cà phê "Ngon hơn khi dùng kèm Topping") thì cắt bỏ phần đáy.
+                                    var crop = ShopImages.CleanPhotoIds.Contains(tilePhotos[at].Id) ? null : " coll-crop";
+                                    <span class="coll-photo coll-@size@(crop)"><img src="@ShopImages.Url(tilePhotos[at].Image, size == "mid" ? 130 : 90)" alt="" loading="lazy" decoding="async" /></span>
                                 }
-                                @if (tilePhotos.Count > 1)
-                                {
-                                    <div class="plate coll-left"><img src="@ShopImages.Url(tilePhotos[1].Image, 72)" alt="" class="@zoom" loading="lazy" /></div>
-                                }
-                                @if (tilePhotos.Count > 2)
-                                {
-                                    <div class="plate coll-right"><img src="@ShopImages.Url(tilePhotos[2].Image, 72)" alt="" class="@zoom" loading="lazy" /></div>
-                                }
-                            </div>
-                            <p class="coll-title">@c.Title</p>
+                            </span>
+                            <span class="coll-title"><span>@c.Title</span></span>
                         </a>
                     }
                 </div>
@@ -163,7 +159,7 @@
                     {
                         var on = s.Promotion.Id == picked.Promotion.Id;
                         <a class="chip @(on ? "active" : null)" href="?khung=@s.Promotion.Id#flash-sale" data-switch="flash:@s.Promotion.Id"
-                           aria-pressed="@(on ? "true" : "false")">@s.Promotion.Name</a>
+                           aria-pressed="@(on ? "true" : "false")"><span class="chip-time">@Fmt.Time(s.Start)</span>@s.Promotion.Name</a>
                     }
                 </div>
                 @foreach (var s in Model.Slots)
@@ -179,7 +175,7 @@
                             @ShopIcons.Svg("clock", 16, "text-orange")
                             @s.OpensLabel(now)
                         }
-                        <span class="hide-sm">· Giảm @s.Promotion.Value%</span>
+                        <span class="pct hide-sm">−@s.Promotion.Value%</span>
                     </span>
                 }
                 <a class="sec-all" href="@ShopUrls.Promotions">Xem tất cả @ShopIcons.Svg("chevron-right", 16)</a>
