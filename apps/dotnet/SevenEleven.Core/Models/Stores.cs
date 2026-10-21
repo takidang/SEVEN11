@@ -1,3 +1,5 @@
+using SevenEleven.Core.Services;
+
 namespace SevenEleven.Core.Models;
 
 public enum StoreStatus { Active, Maintenance, Closed }
@@ -31,7 +33,7 @@ public enum StaffRole { Admin, Manager, Cashier }
 
 public enum EmployeeStatus { Active, OnLeave, Inactive }
 
-public class Employee
+public class Employee : ILockableAccount
 {
     public string Id { get; set; } = "";
     public string Code { get; set; } = "";
@@ -48,4 +50,7 @@ public class Employee
     public string PasswordHash { get; set; } = "";
     /// <summary>Mật khẩu do người khác cấp (nhân viên mới, quản trị vừa đặt lại): phải tự đổi ở lần đăng nhập tới.</summary>
     public bool MustChangePassword { get; set; }
+    /// <summary>Số lần sai mật khẩu liên tiếp; luật khoá ở Services/LoginLockout.</summary>
+    public int FailedLogins { get; set; }
+    public DateTime? LockedUntil { get; set; }
 }

@@ -83,6 +83,10 @@
         <section class="panel">
             <div class="panel-head"><div><h2>Mật khẩu</h2>
                 <p>@(emp.MustChangePassword ? "Đang dùng mật khẩu được cấp, chưa tự đổi." : "Nhân viên đã tự đặt mật khẩu.")</p></div></div>
+            @if (LoginLockout.IsLocked(emp, DateTime.Now))
+            {
+                <div class="flash flash-warn" role="status">@Icons.Svg("alert", 16) Đăng nhập đang khoá tới @emp.LockedUntil!.Value.ToString("HH:mm") do nhập sai mật khẩu @LoginLockout.MaxAttempts lần. Đặt lại mật khẩu sẽ mở khoá ngay.</div>
+            }
             <form method="post" asp-action="ResetPassword" asp-route-id="@emp.Id"
                   data-confirm="Đặt lại mật khẩu cho @emp.FullName? Mật khẩu cũ hết dùng được, hệ thống cấp mật khẩu tạm và nhân viên phải đổi ở lần đăng nhập tới.">
                 <button class="btn" type="submit">@Icons.Svg("key", 16) Đặt lại mật khẩu</button>

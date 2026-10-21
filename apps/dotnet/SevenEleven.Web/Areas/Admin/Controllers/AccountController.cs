@@ -37,13 +37,18 @@ public class AccountController(AppDbContext db, PasswordService passwords) : Con
     {
         var normalized = (email ?? "").Trim().ToLowerInvariant();
         var employee = await db.Employees.Include(e => e.Store).FirstOrDefaultAsync(e => e.Email.ToLower() == normalized);
+        var now = DateTime.Now;
         string? error = employee switch
         {
             null => "Email này chưa có tài khoản nhân viên",
-            _ when !PasswordHasher.Verify(password ?? "", employee.PasswordHash) => "Mật khẩu không đúng",
+            // Đang khoá vì sai nhiều lần: kiểm tra trước mật khẩu nên đoán đúng lúc này cũng không vào được.
+            _ when LoginLockout.LockedMessage(employee, now) is string locked => locked,
+            _ when !PasswordHasher.Verify(password ?? "", employee.PasswordHash) => LoginLockout.RecordFailure(employee, now),
             { Status: EmployeeStatus.Inactive } => "Tài khoản đã bị khoá, liên hệ quản trị chuỗi",
             _ => null,
         };
+        if (employee is not null && error is null) LoginLockout.Clear(employee);
+        if (employee is not null) await db.SaveChangesAsync();
         if (error is not null)
         {
             ViewBag.Error = error;

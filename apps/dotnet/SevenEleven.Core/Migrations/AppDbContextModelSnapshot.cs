@@ -111,6 +111,9 @@ namespace SevenEleven.Core.Migrations
                     b.Property<string>("Email")
                         .HasColumnType("TEXT");
 
+                    b.Property<int>("FailedLogins")
+                        .HasColumnType("INTEGER");
+
                     b.Property<string>("FullName")
                         .IsRequired()
                         .HasColumnType("TEXT");
@@ -119,6 +122,9 @@ namespace SevenEleven.Core.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<DateTime>("JoinedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("LockedUntil")
                         .HasColumnType("TEXT");
 
                     b.Property<int>("OrderCount")
@@ -222,11 +228,17 @@ namespace SevenEleven.Core.Migrations
                         .IsRequired()
                         .HasColumnType("TEXT");
 
+                    b.Property<int>("FailedLogins")
+                        .HasColumnType("INTEGER");
+
                     b.Property<string>("FullName")
                         .IsRequired()
                         .HasColumnType("TEXT");
 
                     b.Property<DateTime>("HiredAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("LockedUntil")
                         .HasColumnType("TEXT");
 
                     b.Property<bool>("MustChangePassword")
