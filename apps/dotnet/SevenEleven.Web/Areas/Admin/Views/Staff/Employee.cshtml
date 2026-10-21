@@ -14,7 +14,7 @@
         @if (emp is null)
         {
             <h1>Thêm nhân viên</h1>
-            <p>@(Model.ActorIsAdmin ? "Tài khoản đăng nhập bằng email, mật khẩu mặc định 123456." : "Quản lý cửa hàng chỉ thêm được thu ngân cho cửa hàng của mình.")</p>
+            <p>@(Model.ActorIsAdmin ? "Tài khoản đăng nhập bằng email, mật khẩu mặc định 123456 — nhân viên phải đổi ở lần đăng nhập đầu." : "Quản lý cửa hàng chỉ thêm được thu ngân cho cửa hàng của mình.")</p>
         }
         else
         {
@@ -76,6 +76,17 @@
                 <dt>Ngày vào làm</dt><dd>@emp.HiredAt.ToString("dd/MM/yyyy")</dd>
             </dl>
             <p class="muted" style="margin:10px 0 0">@(emp.Id == staff?.Id ? "Đây là tài khoản của bạn. Liên hệ quản trị chuỗi để thay đổi thông tin." : "Bạn chỉ xem được thông tin nhân viên này.")</p>
+        </section>
+    }
+    @if (emp is not null && Model.ActorIsAdmin && !Model.IsSelf)
+    {
+        <section class="panel">
+            <div class="panel-head"><div><h2>Mật khẩu</h2>
+                <p>@(emp.MustChangePassword ? "Đang dùng mật khẩu được cấp, chưa tự đổi." : "Nhân viên đã tự đặt mật khẩu.")</p></div></div>
+            <form method="post" asp-action="ResetPassword" asp-route-id="@emp.Id"
+                  data-confirm="Đặt lại mật khẩu cho @emp.FullName? Mật khẩu cũ hết dùng được, hệ thống cấp mật khẩu tạm và nhân viên phải đổi ở lần đăng nhập tới.">
+                <button class="btn" type="submit">@Icons.Svg("key", 16) Đặt lại mật khẩu</button>
+            </form>
         </section>
     }
     @if (emp is not null)

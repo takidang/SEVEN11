@@ -6,6 +6,7 @@
 @{
     var c = Model.Customer;
     var errors = Model.ProfileErrors;
+    var pwErrors = Model.PasswordErrors;
     var values = Model.ProfileValues;
     var name = values?.FullName ?? c.FullName;
     var email = values?.Email ?? c.Email ?? "";
@@ -64,6 +65,36 @@
                     <div><dt>Số đơn đã mua</dt><dd class="tabular">@Fmt.Num(c.OrderCount)</dd></div>
                     <div><dt>Tổng chi tiêu</dt><dd class="tabular">@Fmt.Vnd(c.TotalSpent)</dd></div>
                 </dl>
+            </div>
+        </section>
+        <section class="panel2" id="doi-mat-khau">
+            <div class="panel2-head"><h2 class="panel2-title">Đổi mật khẩu</h2></div>
+            <div class="panel2-body">
+                <form method="post" asp-controller="Account" asp-action="ChangePassword" class="stack-4" novalidate>
+                    @foreach (var (field, name, label, auto) in new[]
+                    {
+                        ("Current", "current", "Mật khẩu hiện tại", "current-password"),
+                        ("Password", "password", "Mật khẩu mới", "new-password"),
+                        ("Confirm", "confirm", "Nhập lại mật khẩu mới", "new-password"),
+                    })
+                    {
+                        <div class="field2">
+                            <label for="pw-@name">@label</label>
+                            <div class="ig">
+                                @ShopIcons.Svg("lock-keyhole", 16)
+                                <input id="pw-@name" name="@name" type="password" autocomplete="@auto" maxlength="@PasswordService.MaxLength"
+                                       aria-invalid="@(pwErrors?.Of(field) is null ? "false" : "true")" />
+                                <button type="button" class="ig-btn" data-pw-toggle aria-pressed="false" aria-label="Hiện mật khẩu">@ShopIcons.Svg("eye", 16, "eye-on")@ShopIcons.Svg("eye-off", 16, "eye-off")</button>
+                            </div>
+                            @if (field == "Password" && pwErrors?.Of(field) is null)
+                            {
+                                <p class="field-hint">Tối thiểu @PasswordService.MinLength ký tự, khác mật khẩu hiện tại.</p>
+                            }
+                            @Forms.Error(pwErrors, field)
+                        </div>
+                    }
+                    <button type="submit" class="btn btn-block">Đổi mật khẩu</button>
+                </form>
             </div>
         </section>
         <section class="panel2">

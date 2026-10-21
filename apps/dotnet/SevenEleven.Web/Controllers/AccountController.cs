@@ -20,7 +20,8 @@ namespace SevenEleven.Web.Controllers;
 /// (cũng là cách khách đăng ký tại quầy tự tạo mật khẩu).
 /// </summary>
 public class AccountController(
-    AppDbContext db, LoyaltyService loyalty, CartStore cart, OtpService otp, CustomerAdminService customers, ShopContext shop) : ShopController(db)
+    AppDbContext db, LoyaltyService loyalty, CartStore cart, OtpService otp, CustomerAdminService customers, PasswordService passwords, ShopContext shop)
+    : ShopController(db)
 {
     public const int PasswordMinLength = 6;
     public const int PasswordMaxLength = 64;
@@ -351,6 +352,7 @@ public class AccountController(
         var promotions = shop.Promotions;
 
         var profile = TempData["ProfileForm"] is string json ? JsonSerializer.Deserialize<ProfileFormState>(json, JsonOptions) : null;
+        var passwordErrors = TempData["PasswordForm"] is string pw ? JsonSerializer.Deserialize<Dictionary<string, string>>(pw, JsonOptions) : null;
         ViewData["Title"] = "Tài khoản";
         return View(new AccountModel
         {
@@ -377,6 +379,7 @@ public class AccountController(
             OrderLimit = Math.Clamp(so ?? AccountModel.OrderPage, AccountModel.OrderPage, 1000),
             ProfileErrors = profile?.Errors is { Count: > 0 } e ? Errors(e) : null,
             ProfileValues = profile?.Values,
+            PasswordErrors = passwordErrors is { Count: > 0 } pe ? Errors(pe) : null,
             Categories = shop.Categories,
         });
     }
@@ -419,6 +422,16 @@ public class AccountController(
         await SignInCustomerAsync(customer);
         this.Toast("Đã lưu thông tin tài khoản");
         return Redirect(ShopUrls.AccountTab("thong-tin"));
+    }
+
+    /// <summary>Tab "Thông tin": đổi mật khẩu bằng mật khẩu hiện tại. Lỗi mang qua lần chuyển trang, không mang mật khẩu.</summary>
+    [HttpPost, ValidateAntiForgeryToken, Authorize(Roles = Roles.Customer)]
+    public async Task<IActionResult> ChangePassword(string? current, string? password, string? confirm)
+    {
+        var errors = await passwords.ChangeCustomerAsync(User.CustomerId()!, current, password, confirm);
+        if (errors.Count > 0) TempData["PasswordForm"] = JsonSerializer.Serialize(new Dictionary<string, string>(errors), JsonOptions);
+        else this.Toast("Đã đổi mật khẩu", "Lần sau đăng nhập bằng mật khẩu mới.");
+        return Redirect(ShopUrls.AccountTab("thong-tin") + "#doi-mat-khau");
     }
 
     /// <summary>Đổi sao vàng lấy voucher.</summary>

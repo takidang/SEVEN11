@@ -99,6 +99,8 @@
                         </summary>
                         <div class="menu">
                             <p class="menu-note">@staff.Email</p>
+                            <a class="menu-item" asp-area="Admin" asp-controller="Account" asp-action="ChangePassword"
+                               asp-route-returnUrl="@(Context.Request.Path + Context.Request.QueryString)">@Icons.Svg("key", 16) Đổi mật khẩu</a>
                             @if (staff.IsAdmin)
                             {
                                 <form method="post" asp-area="Admin" asp-controller="Demo" asp-action="Reset"

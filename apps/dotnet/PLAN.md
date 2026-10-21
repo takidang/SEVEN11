@@ -74,3 +74,15 @@ Chú thích: ✅ xong · 🚧 đang làm · ⏳ chưa làm
 
 - ✅ Hướng dẫn chạy (README), tạo lại dữ liệu mẫu (máy chủ :5711 chạy dữ liệu mới, DB cũ sao lưu ở
   `SevenEleven.Web/sevenEleven.db.bak-20261006`), báo cáo kết quả cho sếp duyệt.
+
+## G. Việc nhóm giao (21/10/2026)
+
+- ✅ G1. Đổi mật khẩu cho nhân viên và khách; nhân viên mới phải đổi ở lần đăng nhập đầu; quản trị đặt
+  lại được mật khẩu (cấp mật khẩu tạm, bắt đổi lại). Nhánh `feat/change-password`.
+- ⏳ G2. Sai mật khẩu 5 lần liên tiếp thì khoá đăng nhập 15 phút, cả nhân viên lẫn khách. `feat/login-lockout`
+- ⏳ G3. Lịch sử đổi giá bán, giá vốn (ai đổi, lúc nào), xem trong trang sửa sản phẩm. `feat/price-history`
+- ⏳ G4. Tải ảnh sản phẩm lên (jpg, png, webp tối đa 2 MB) thay vì dán link. `feat/product-image-upload`
+- ⏳ G5. Phiếu nhập nhận thiếu, nhận nhiều đợt, có nút kết thúc phiếu. `feat/partial-receiving`
+- ⏳ G6. Chuyển kho giữa các cửa hàng: bên gửi trừ kho, bên nhận xác nhận thì cộng kho, giữ hạn dùng của lô. `feat/stock-transfer`
+- ⏳ G7. Trả hàng cho đơn đã hoàn thành trong 7 ngày: nhập lại kho hoặc xuất huỷ, hoàn tiền, trừ lại sao và
+  chi tiêu xét hạng. `feat/order-returns`
