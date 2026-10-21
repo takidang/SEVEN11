@@ -52,6 +52,13 @@ public abstract class AdminController(AppDbContext db) : Controller
     {
         if (User.Staff() is { } staff)
         {
+            // Đọc lại từ cơ sở dữ liệu thay vì tin cookie: quản trị vừa đặt lại mật khẩu thì người đang đăng nhập cũng bị chặn ngay.
+            if (await Db.Employees.AnyAsync(e => e.Id == staff.Id && e.MustChangePassword))
+            {
+                var here = HttpMethods.IsGet(Request.Method) ? Request.Path + Request.QueryString : null;
+                context.Result = RedirectToAction("ChangePassword", "Account", new { area = "Admin", returnUrl = here });
+                return;
+            }
             // Áp bảng quyền ở máy chủ: không có quyền thì không mở được; chỉ xem thì không gửi thay đổi được.
             var module = context.ActionDescriptor.RouteValues["controller"] ?? "";
             if (module is not ("Scope" or "Demo" or "Account"))

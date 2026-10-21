@@ -10,7 +10,7 @@ namespace SevenEleven.Web.Areas.Admin.Controllers;
 /// Nhân viên & ca làm: hồ sơ nhân viên, lịch ca theo tuần, chốt tiền két cuối ca. Quản trị và quản lý
 /// dùng được; quản lý chỉ thêm/sửa thu ngân cửa hàng mình. Lịch ca và chốt ca làm theo từng cửa hàng.
 /// </summary>
-public class StaffController(AppDbContext db, ChainAdminService chain, ShiftService shifts) : AdminController(db)
+public class StaffController(AppDbContext db, ChainAdminService chain, ShiftService shifts, PasswordService passwords) : AdminController(db)
 {
     private const int PageSize = 20;
 
@@ -124,6 +124,18 @@ public class StaffController(AppDbContext db, ChainAdminService chain, ShiftServ
         Toast((input.Id is null ? $"Đã thêm nhân viên {e.FullName} ({e.Code})" : $"Đã lưu thông tin {e.FullName}")
               + (orphans > 0 ? $". Nhân viên còn {orphans} ca đã xếp từ hôm nay – hãy xếp lại lịch ca." : ""));
         return RedirectToAction(nameof(Employee), new { id = e.Id });
+    }
+
+    /// <summary>Quản trị đặt lại mật khẩu: mật khẩu tạm hiện một lần ở thông báo, nhân viên phải đổi khi đăng nhập.</summary>
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> ResetPassword(string id)
+    {
+        var employee = await Db.Employees.AsNoTracking().FirstOrDefaultAsync(e => e.Id == id);
+        if (employee is null) return NotFound();
+        var result = await passwords.ResetEmployeeAsync(new Actor(Staff.Id, Staff.Role, Staff.StoreId), id);
+        if (result.Ok) Toast($"Đã đặt lại mật khẩu cho {employee.FullName}. Mật khẩu tạm: {result.TempPassword} — chỉ hiện một lần, nhân viên phải đổi ở lần đăng nhập tới.");
+        else Error(result.Error);
+        return RedirectToAction(nameof(Employee), new { id });
     }
 
     private async Task<IActionResult> EmployeeViewAsync(EmployeeInput input, Employee? employee, FormErrors? errors)

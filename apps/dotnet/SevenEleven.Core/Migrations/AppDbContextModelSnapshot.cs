@@ -229,6 +229,9 @@ namespace SevenEleven.Core.Migrations
                     b.Property<DateTime>("HiredAt")
                         .HasColumnType("TEXT");
 
+                    b.Property<bool>("MustChangePassword")
+                        .HasColumnType("INTEGER");
+
                     b.Property<string>("PasswordHash")
                         .IsRequired()
                         .HasColumnType("TEXT");

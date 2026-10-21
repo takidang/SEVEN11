@@ -46,4 +46,6 @@ public class Employee
     public DateTime HiredAt { get; set; }
     /// <summary>Mật khẩu băm. Bản demo dùng chung một mật khẩu.</summary>
     public string PasswordHash { get; set; } = "";
+    /// <summary>Mật khẩu do người khác cấp (nhân viên mới, quản trị vừa đặt lại): phải tự đổi ở lần đăng nhập tới.</summary>
+    public bool MustChangePassword { get; set; }
 }

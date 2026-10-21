@@ -86,6 +86,7 @@ public sealed class AccountModel
     public required int OrderLimit { get; init; }
     public FormErrors? ProfileErrors { get; init; }
     public ProfileInput? ProfileValues { get; init; }
+    public FormErrors? PasswordErrors { get; init; }
     public required IReadOnlyList<Category> Categories { get; init; }
 
     public static readonly (string Key, string Label, string Icon)[] Tabs =

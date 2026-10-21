@@ -276,7 +276,11 @@ public partial class ChainAdminService(AppDbContext db)
         {
             var codes = await db.Employees.Select(e => e.Code).ToListAsync();
             var next = codes.Select(c => EmployeeCode().Match(c)).Where(m => m.Success).Select(m => int.Parse(m.Groups[1].Value)).DefaultIfEmpty(0).Max() + 1;
-            employee = new Employee { Id = "em-" + Text.Random(8), Code = $"NV{next:0000}", PasswordHash = PasswordHasher.Hash(SeedData.DemoPassword) };
+            // Mật khẩu mặc định do người khác cấp: nhân viên phải tự đổi ở lần đăng nhập đầu.
+            employee = new Employee
+            {
+                Id = "em-" + Text.Random(8), Code = $"NV{next:0000}", PasswordHash = PasswordHasher.Hash(SeedData.DemoPassword), MustChangePassword = true,
+            };
             db.Employees.Add(employee);
         }
         var wasManagerOf = existing?.Role == StaffRole.Manager && (role != StaffRole.Manager || storeId != existing.StoreId);
