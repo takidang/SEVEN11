@@ -454,6 +454,10 @@
       url.searchParams.set(param, key);
       history.replaceState(null, "", url.pathname + url.search + url.hash);
     }
+    // Nút ở kệ đầu trang: chọn đúng khung giờ rồi cuộn xuống mục Flash Sale.
+    var scrollTo = sw.getAttribute("data-scroll");
+    var target = scrollTo && doc.getElementById(scrollTo);
+    if (target) target.scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
   });
 
   // ------------------------------------------------------------------ sao chép mã

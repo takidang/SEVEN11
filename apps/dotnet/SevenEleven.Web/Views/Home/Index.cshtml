@@ -6,108 +6,96 @@
 @{
     var slot = Model.Featured;
     var now = Model.Now;
-    var photos = Model.BannerPhotos;
+    var shelf = Model.Shelf;
+    var slotCount = slot is null ? 0 : Model.SlotProducts[slot.Promotion.Id].Count;
+    // Chữ trên băng đỏ của nhãn giá: bản dài cho nhãn rộng, bản ngắn cho nhãn trên điện thoại.
+    var (whenLong, whenShort) = slot switch
+    {
+        null => ("Giá tốt hôm nay", "hôm nay"),
+        { State: SlotState.Live } => ($"Đang giảm đến {Fmt.Time(slot.End)}", $"đến {Fmt.Time(slot.End)}"),
+        { NextStart: DateTime next } => ($"Từ {Fmt.Time(next)} {(next.Date == now.Date ? "hôm nay" : "ngày mai")}", $"từ {Fmt.Time(next)}"),
+        _ => ("Đã kết thúc", "hết giờ"),
+    };
+    var cup = """<svg class="ic-cup" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5.5 7.2h13"/><path d="M6.3 7.2 7.6 20a1.3 1.3 0 0 0 1.3 1.1h6.2a1.3 1.3 0 0 0 1.3-1.1l1.3-12.8"/><path d="M6.2 7.2c0-1.5.9-2.4 2.4-2.4h6.8c1.5 0 2.4.9 2.4 2.4"/><path d="M13.6 4.8 15 1.8"/><path d="M7 12.6h10"/></svg>""";
 }
 <div class="stack-8">
     <h1 class="sr-only">7-Eleven – mở cửa 24 giờ, giao hàng 24 phút</h1>
 
-    <section class="hero-row" aria-label="Chương trình nổi bật">
-        @* Banner A: khung flash sale đang chạy (hoặc sắp mở). *@
-        <a class="banner banner-flash" href="@ShopUrls.Promotions"
-           aria-label="@(slot is null ? "Xem flash sale và khuyến mãi" : $"Flash sale {slot.Promotion.Name}: giảm {slot.Promotion.Value}%, {slot.Window}. Xem khuyến mãi")">
-            <div class="banner-bg" aria-hidden="true"></div>
-            <div class="banner-glow" aria-hidden="true"></div>
-            <div class="banner-copy">
-                <div class="banner-kicker">
-                    <span class="banner-chip">@ShopIcons.Svg("zap", 14, "i-fill") Flash sale</span>
+    <div class="home-top">
+        @* Đầu trang là một kệ hàng dưới đèn: món của khung flash sale nổi bật đứng trên kệ, nhãn giá vàng kẹp ở
+           mép kệ. Kệ, đèn, nhãn giá là đồ thật của cửa hàng tiện lợi; chuyển động chỉ có ở đây. *@
+        <section class="shelf" aria-labelledby="shelf-title">
+            <div class="shelf-in">
+                <div class="shelf-light" aria-hidden="true"></div>
+                <div class="shelf-board" aria-hidden="true"></div>
+                <div class="shelf-copy">
                     @if (slot is not null)
                     {
-                        <span class="banner-window">@slot.Window</span>
-                    }
-                </div>
-                <p class="banner-title headline">@(slot?.Promotion.Name ?? "Giá sốc mỗi ngày")</p>
-                <span class="banner-tag headline">@(slot is null ? "Mua là có quà" : $"Giảm {slot.Promotion.Value}%")</span>
-                <div class="banner-foot">
-                    @if (slot?.State == SlotState.Live)
-                    {
-                        var left = Fmt.SecondsLeft(slot.End, now);
-                        <div class="banner-live">
-                            <span class="banner-live-label">Kết thúc sau</span>
-                            <span class="digits" role="timer" data-left="@left" data-reload>
-                                <b data-digit>@((left / 3600).ToString("00"))</b><i>:</i><b data-digit>@((left % 3600 / 60).ToString("00"))</b><i>:</i><b data-digit>@((left % 60).ToString("00"))</b>
-                            </span>
+                        <h2 class="shelf-title" id="shelf-title"><span class="ln"><span>@slot.Promotion.Name</span></span><span class="ln ln-sale"><span>giảm @slot.Promotion.Value%</span></span></h2>
+                        <p class="shelf-lede">Áp dụng cho @slotCount món, mỗi ngày từ @Fmt.Time(slot.Start) đến @Fmt.Time(slot.End).</p>
+                        <div class="shelf-cta">
+                            <a class="btn btn-lg shelf-go" href="?khung=@slot.Promotion.Id#flash-sale" data-switch="flash:@slot.Promotion.Id" data-scroll="flash-sale">Xem @slotCount món</a>
+                            <a class="btn btn-lg btn-outline" href="@ShopUrls.Promotions">Lịch flash sale</a>
                         </div>
-                    }
-                    else if (slot is not null)
-                    {
-                        <span class="banner-pill">
-                            @ShopIcons.Svg("clock", 16)
-                            <span class="short">@slot.OpensLabel(now, compact: true)</span>
-                            <span class="long">@slot.OpensLabel(now)</span>
-                        </span>
-                        @if (slot.NextStart is DateTime opens && opens.Date == now.Date)
-                        {
-                            <span hidden data-left="@Fmt.SecondsLeft(opens, now)" data-reload></span>
-                        }
                     }
                     else
                     {
-                        <span class="banner-hunt">Săn deal giảm giá mỗi ngày</span>
+                        <h2 class="shelf-title" id="shelf-title"><span class="ln"><span>Mở cửa 24 giờ,</span></span><span class="ln"><span>giao trong 24 phút</span></span></h2>
+                        <p class="shelf-lede">Đồ ăn, thức uống và hàng tiện lợi từ cửa hàng gần bạn nhất.</p>
+                        <div class="shelf-cta"><a class="btn btn-lg shelf-go" href="@ShopUrls.Promotions">Xem khuyến mãi</a></div>
                     }
-                    <span class="banner-cta">Săn deal ngay @ShopIcons.Svg("arrow-right", 16)</span>
                 </div>
-            </div>
-            <div aria-hidden="true">
-                @if (photos.Count > 2)
+                @if (slot is not null)
                 {
-                    <div class="plate plate-sm"><img src="@ShopImages.Url(photos[2].Src, 110)" alt="" class="@photos[2].Zoom" /></div>
-                }
-                @if (photos.Count > 0)
-                {
-                    <div class="plate-big-wrap">
-                        <div class="plate plate-big"><img src="@ShopImages.Url(photos[0].Src, 220)" alt="" class="@photos[0].Zoom" /></div>
-                        @if (slot is not null)
+                    <p class="shelf-sign">
+                        @ShopIcons.Svg("clock", 16)
+                        <b class="sign-window">@slot.Window</b>
+                        @if (slot.State == SlotState.Live)
                         {
-                            <span class="plate-badge headline">-@slot.Promotion.Value%</span>
+                            var left = Fmt.SecondsLeft(slot.End, now);
+                            <span class="sign-state" data-left="@left" data-reload>còn <b data-clock>@Fmt.Clock(left)</b></span>
                         }
-                    </div>
-                }
-                @if (photos.Count > 1)
-                {
-                    <div class="plate plate-md"><img src="@ShopImages.Url(photos[1].Src, 140)" alt="" class="@photos[1].Zoom" /></div>
-                }
-            </div>
-        </a>
-
-        @* Banner B: chương trình thành viên "Mua sắm – nâng hạng". *@
-        <a class="banner banner-member" href="@ShopUrls.Membership" aria-label="Chương trình thành viên Mua sắm – nâng hạng">
-            <div class="banner-bg" aria-hidden="true"></div>
-            <div class="banner-ring" aria-hidden="true"></div>
-            <div class="banner-copy">
-                <span class="banner-chip">Thành viên 7-Eleven</span>
-                <p class="banner-title headline">Mua sắm –<br />nâng hạng</p>
-                <p class="banner-text">Đủ mốc là lên hạng, voucher đồ uống đến -@Fmt.CompactUpper(MembershipService.Info(MemberTier.Diamond).DrinkVoucher)/ly</p>
-                <span class="banner-cta">Xem quyền lợi @ShopIcons.Svg("arrow-right", 16)</span>
-            </div>
-            <div class="steps" aria-hidden="true">
-                @foreach (var t in MembershipService.Order)
-                {
-                    var info = MembershipService.Info(t);
-                    <div class="step step-@TierStyle.Key(t)">
-                        @if (t == MemberTier.Diamond && Model.MemberCup is Product cup)
+                        else if (slot.NextStart is DateTime opens && opens.Date == now.Date)
                         {
-                            <div class="step-cup"><img src="@ShopImages.Url(cup.Image, 120)" alt="" /></div>
+                            var left = Fmt.SecondsLeft(opens, now);
+                            <span class="sign-state" data-left="@left" data-reload>bắt đầu sau <b data-clock>@Fmt.Clock(left)</b></span>
                         }
-                        <div class="step-block">
-                            <span class="step-name">@info.Label</span>
-                            <span class="step-value headline">-@Fmt.CompactUpper(info.DrinkVoucher)</span>
-                            <span class="step-unit">mỗi ly</span>
-                        </div>
-                    </div>
+                        else
+                        {
+                            <span class="sign-state">@(slot.NextStart is null ? "đã kết thúc" : "ngày mai")</span>
+                        }
+                    </p>
                 }
+                <ul class="shelf-goods" role="list">
+                    @for (var i = 0; i < shelf.Count; i++)
+                    {
+                        var item = shelf[i];
+                        var p = item.Product;
+                        var off = item.Price > item.SalePrice;
+                        <li class="good@(item.Facings > 1 ? " good-solo" : null)" style="--i:@i">
+                            <a href="@ShopUrls.Product(p.Slug)" title="@p.Name" aria-label="@p.Name, @Fmt.Vnd(item.SalePrice) @whenLong.ToLowerInvariant()@(off ? $", giá thường {Fmt.Vnd(item.Price)}" : null)">
+                                <span class="good-row">
+                                    @for (var f = 0; f < item.Facings; f++)
+                                    {
+                                        <span class="good-photo" style="--n:@(i + f)"><img src="@ShopImages.Url(p.Image, 200)" alt="" width="200" height="200" decoding="async" /></span>
+                                    }
+                                </span>
+                                <span class="good-tag">
+                                    <span class="good-when">@if (slot is not null) {<span class="when-pct">−@slot.Promotion.Value%</span>}<span class="when-long">@whenLong</span><span class="when-short">@whenShort</span></span>
+                                    <span class="good-name">@p.Name</span>
+                                    <span class="good-price"><b>@Fmt.Vnd(item.SalePrice)</b>@if (off) {<s>@Fmt.Vnd(item.Price)</s>}</span>
+                                </span>
+                            </a>
+                        </li>
+                    }
+                </ul>
             </div>
+        </section>
+        <a class="member-line" href="@ShopUrls.Membership">
+            @Html.Raw(cup)
+            <span>Thành viên đủ mốc là lên hạng, voucher đồ uống tới <b>−@Fmt.CompactUpper(MembershipService.Info(MemberTier.Diamond).DrinkVoucher)</b> mỗi ly. <span class="member-more">Xem quyền lợi</span></span>
         </a>
-    </section>
+    </div>
 
     <section>
         <div class="sec-head"><h2>Gợi ý cho bạn</h2></div>
