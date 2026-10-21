@@ -25,6 +25,7 @@ Default UI language is Vietnamese. Research and business rules:
 7-eleven/
 ├── apps/
 │   ├── frontend/   Next.js 16 app (storefront + back office) with an in-browser mock backend
+│   ├── dotnet/     ASP.NET Core 8 MVC + C++ rewrite on SQLite (see apps/dotnet/README.md)
 │   └── backend/    not started — the team decides the stack (see docs/architecture.md)
 ├── docs/           research, architecture, development, roadmap
 ├── .claude/        agents + skills for Claude Code
@@ -63,8 +64,8 @@ at desktop and mobile width with no console errors, walking the real flow.
 
 ## Working agreements
 
-- **Repo:** https://github.com/takidang/SEVEN11 (private, branch `main`). The .NET rewrite in
-  `apps/dotnet/` is still in progress and is not pushed yet.
+- **Repo:** https://github.com/takidang/SEVEN11 (public, branch `main`). The ASP.NET Core 8 MVC (+ C++)
+  rewrite lives in `apps/dotnet/`; how to run and test it: `apps/dotnet/README.md`.
 - Next.js 16 has breaking changes vs. older versions — read `apps/frontend/AGENTS.md` and the
   bundled docs in `apps/frontend/node_modules/next/dist/docs/` before using Next APIs.
 - Keep business rules in `apps/frontend/src/lib` (pure functions) so the backend can port them:
