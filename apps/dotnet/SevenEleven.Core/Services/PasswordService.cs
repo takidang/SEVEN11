@@ -55,8 +55,8 @@ public class PasswordService(AppDbContext db)
     }
 
     /// <summary>
-    /// Quản trị đặt lại mật khẩu cho nhân viên khác: cấp mật khẩu tạm ngẫu nhiên và bắt đổi ở lần đăng
-    /// nhập tới. Không đặt lại cho chính mình — tự đổi ở menu tài khoản.
+    /// Quản trị đặt lại mật khẩu cho nhân viên khác: cấp mật khẩu tạm ngẫu nhiên, bắt đổi ở lần đăng
+    /// nhập tới và mở khoá đăng nhập nếu đang bị khoá. Không đặt lại cho chính mình — tự đổi ở menu tài khoản.
     /// </summary>
     public async Task<PasswordReset> ResetEmployeeAsync(Actor actor, string employeeId)
     {
@@ -68,6 +68,7 @@ public class PasswordService(AppDbContext db)
         var temp = RandomNumberGenerator.GetString(TempAlphabet, TempLength);
         employee.PasswordHash = PasswordHasher.Hash(temp);
         employee.MustChangePassword = true;
+        LoginLockout.Clear(employee);
         await db.SaveChangesAsync();
         return new(true, null, temp);
     }

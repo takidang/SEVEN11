@@ -102,8 +102,14 @@ public class AccountController(
             return BackToForm(false, target, new AuthFormState { Phone = phone, Problem = AuthProblem.NotRegistered, ProblemPhone = normalized });
         if (customer.PasswordHash is null)
             return BackToForm(false, target, new AuthFormState { Phone = phone, Problem = AuthProblem.NoPassword, ProblemPhone = normalized });
-        if (!PasswordHasher.Verify(password!, customer.PasswordHash))
-            return BackToForm(false, target, new AuthFormState { Phone = phone, Errors = new FormErrors { ["password"] = "Mật khẩu không đúng" } });
+        // Đang khoá vì sai nhiều lần: kiểm tra trước mật khẩu nên đoán đúng lúc này cũng không vào được.
+        var now = DateTime.Now;
+        var error = LoginLockout.LockedMessage(customer, now);
+        if (error is null && !PasswordHasher.Verify(password!, customer.PasswordHash)) error = LoginLockout.RecordFailure(customer, now);
+        if (error is null) LoginLockout.Clear(customer);
+        await Db.SaveChangesAsync();
+        if (error is not null)
+            return BackToForm(false, target, new AuthFormState { Phone = phone, Errors = new FormErrors { ["password"] = error } });
 
         await SignInCustomerAsync(customer);
         ClearFlow();
@@ -247,6 +253,8 @@ public class AccountController(
             return Redirect(ShopUrls.SignIn);
         }
         customer.PasswordHash = PasswordHasher.Hash(password!);
+        // Đã chứng minh chủ số điện thoại bằng OTP nên mở khoá đăng nhập luôn.
+        LoginLockout.Clear(customer);
         await Db.SaveChangesAsync();
         await SignInCustomerAsync(customer);
         ClearFlow();

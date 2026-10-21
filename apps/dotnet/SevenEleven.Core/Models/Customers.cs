@@ -1,9 +1,11 @@
+using SevenEleven.Core.Services;
+
 namespace SevenEleven.Core.Models;
 
 /// <summary>Đồng → Bạc → Vàng → Kim cương. Luật hạng nằm ở Services/MembershipService.</summary>
 public enum MemberTier { Bronze, Silver, Gold, Diamond }
 
-public class Customer
+public class Customer : ILockableAccount
 {
     public string Id { get; set; } = "";
     public string FullName { get; set; } = "";
@@ -32,6 +34,9 @@ public class Customer
     public DateTime JoinedAt { get; set; }
     /// <summary>Mật khẩu băm; khách đăng ký tại quầy thì để trống cho tới khi tự đặt.</summary>
     public string? PasswordHash { get; set; }
+    /// <summary>Số lần sai mật khẩu liên tiếp; luật khoá ở Services/LoginLockout.</summary>
+    public int FailedLogins { get; set; }
+    public DateTime? LockedUntil { get; set; }
 
     public List<Address> Addresses { get; set; } = [];
     public List<Order> Orders { get; set; } = [];
