@@ -1,0 +1,128 @@
+@using SevenEleven.Web.Areas.Admin.Controllers
+@model PurchaseDetailModel
+@{
+    var o = Model.Order;
+    var draft = o.Status == PurchaseOrderStatus.Draft;
+    string? createdBy = ViewBag.CreatedBy;
+    var late = o.Status == PurchaseOrderStatus.Ordered && o.ExpectedAt < Model.Now;
+    var have = o.Items.Select(i => i.ProductId).ToHashSet();
+}
+<div class="page-head">
+    <div>
+        <h1>Phiếu nhập @o.Code <span class="badge @Labels.Tone(o.Status)" style="vertical-align:middle">@Labels.Purchase(o.Status)</span></h1>
+        <p>@o.Supplier?.Name → cửa hàng @o.Store?.Code – @o.Store?.Name · lập @o.CreatedAt.ToString("HH:mm dd/MM/yyyy")@(createdBy is null ? "" : $" bởi {createdBy}")</p>
+    </div>
+    <div class="page-actions">
+        <a class="btn" asp-action="Index">← Danh sách phiếu</a>
+        @if (draft)
+        {
+            <form method="post" asp-action="Place" asp-route-id="@o.Id" class="inline">
+                <button class="btn btn-primary" type="submit" disabled="@(o.Items.Count == 0)">Gửi nhà cung cấp</button>
+            </form>
+        }
+        @if (o.Status == PurchaseOrderStatus.Ordered)
+        {
+            <form method="post" asp-action="Receive" asp-route-id="@o.Id" class="inline" data-confirm="Đã kiểm đủ hàng của phiếu @o.Code? Tồn kho sẽ cộng ngay.">
+                <button class="btn btn-primary" type="submit">Nhận hàng & nhập kho</button>
+            </form>
+        }
+        @if (o.Status is PurchaseOrderStatus.Draft or PurchaseOrderStatus.Ordered)
+        {
+            <form method="post" asp-action="Cancel" asp-route-id="@o.Id" class="inline" data-confirm="Huỷ phiếu @o.Code?">
+                <button class="btn btn-danger" type="submit">Huỷ phiếu</button>
+            </form>
+        }
+    </div>
+</div>
+
+@if (o.Status == PurchaseOrderStatus.Ordered)
+{
+    <div class="flash @(late ? "flash-error" : "flash-warn")">
+        @Icons.Svg("clock", 16) Nhà cung cấp hẹn giao @o.ExpectedAt?.ToString("HH:mm dd/MM")@(late ? " — đã trễ hẹn" : "").
+        Kiểm số lượng và hạn dùng khi nhận, rồi bấm "Nhận hàng & nhập kho".
+    </div>
+}
+@if (o.Note is string note)
+{
+    <div class="flash flash-warn">Ghi chú: @note</div>
+}
+
+<div class="panel flush">
+    <div class="panel-head pad">
+        <div><h2>@o.Items.Count mặt hàng · @Money.Format(o.Total)</h2><p>Giá nhập theo giá vốn hiện tại của từng mặt hàng</p></div>
+        @if (draft)
+        {
+            <form method="post" asp-action="Suggest" asp-route-id="@o.Id">
+                <button class="btn btn-sm" type="submit">Thêm hàng sắp hết</button>
+            </form>
+        }
+    </div>
+    @if (o.Items.Count == 0)
+    {
+        <p class="empty">Phiếu chưa có mặt hàng nào.</p>
+    }
+    else
+    {
+        <div class="table-wrap">
+            <table class="table">
+                <thead><tr><th>Mặt hàng</th><th class="num">Tồn hiện tại</th><th class="num">Giá nhập</th><th class="num">Số lượng</th><th class="num">Thành tiền</th></tr></thead>
+                <tbody>
+                    @foreach (var i in o.Items)
+                    {
+                        var level = Model.Stock.GetValueOrDefault(i.ProductId);
+                        var state = level is null ? StockState.Out : InventoryService.StateOf(level.Quantity, level.MinQuantity);
+                        <tr>
+                            <td>
+                                <span class="product-cell">
+                                    <img class="thumb" src="@i.Product?.Image" alt="" loading="lazy" />
+                                    <span>@i.Product?.Name<span class="cell-sub">@i.Product?.Sku@(i.LotCode is string lot ? $" · lô {lot}" : "")@(i.Product?.ShelfLifeDays is int d ? $" · hạn {d} ngày" : "")</span></span>
+                                </span>
+                            </td>
+                            <td class="num @(state == StockState.Out ? "state-out" : state == StockState.Low ? "state-low" : null)">@(level?.Quantity ?? 0) / tối thiểu @(level?.MinQuantity ?? 0)</td>
+                            <td class="num">@Money.Format(i.CostPrice)</td>
+                            <td class="num">
+                                @if (draft)
+                                {
+                                    <div class="stock-form">
+                                        <form method="post" asp-action="SetItem" asp-route-id="@o.Id" class="stock-form">
+                                            <input type="hidden" name="itemId" value="@i.Id" />
+                                            <input class="input input-num" type="number" name="quantity" min="0" step="1" value="@i.Quantity" aria-label="Số lượng nhập @i.Product?.Name" />
+                                            <button class="btn btn-sm" type="submit">Lưu</button>
+                                        </form>
+                                        <form method="post" asp-action="SetItem" asp-route-id="@o.Id">
+                                            <input type="hidden" name="itemId" value="@i.Id" />
+                                            <input type="hidden" name="quantity" value="0" />
+                                            <button class="btn btn-sm btn-danger" type="submit" aria-label="Bỏ @i.Product?.Name khỏi phiếu">@Icons.Svg("x", 14)</button>
+                                        </form>
+                                    </div>
+                                }
+                                else
+                                {
+                                    @i.Quantity
+                                }
+                            </td>
+                            <td class="num">@Money.Format(i.Quantity * i.CostPrice)</td>
+                        </tr>
+                    }
+                </tbody>
+                <tfoot><tr><td colspan="4">Tổng tiền hàng</td><td class="num">@Money.Format(o.Total)</td></tr></tfoot>
+            </table>
+        </div>
+    }
+    @if (draft)
+    {
+        <form method="post" asp-action="AddItem" asp-route-id="@o.Id" class="add-line" style="padding:16px;border-top:1px solid var(--border)">
+            <label class="field"><span>Thêm mặt hàng của @o.Supplier?.Name</span>
+                <select name="productId" required>
+                    <option value="">Chọn mặt hàng</option>
+                    @foreach (var p in Model.Catalog.Where(p => !have.Contains(p.Id)))
+                    {
+                        <option value="@p.Id">@p.Name · @Money.Format(p.CostPrice)</option>
+                    }
+                </select>
+            </label>
+            <label class="field"><span>Số lượng</span><input type="number" name="quantity" min="1" value="24" required /></label>
+            <button class="btn" type="submit">Thêm</button>
+        </form>
+    }
+</div>

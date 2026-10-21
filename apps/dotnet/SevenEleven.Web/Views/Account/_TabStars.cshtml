@@ -1,0 +1,102 @@
+@using SevenEleven.Core.Models
+@using SevenEleven.Core.Services
+@using SevenEleven.Web.Infrastructure
+@using SevenEleven.Web.Models.Shop
+@model AccountModel
+@{
+    var c = Model.Customer;
+    var now = Model.Now;
+    var toNext = StarService.SpendToNextStar(c.StarCarry);
+}
+<div class="stack">
+    <section class="star-head2 ring-box">
+        <div>
+            <p class="small muted">Sao vàng đang có</p>
+            <p class="star-count"><span class="stars">@ShopIcons.Svg("star", 32) @Fmt.Num(c.Stars)</span></p>
+            <p class="small muted">Cứ @Fmt.Vnd(StarService.StarSpend) chi tiêu được 1 sao · sao có hạn @StarService.StarValidMonths tháng</p>
+        </div>
+        <div class="star-next">
+            <p class="small">Chi tiêu thêm <b>@Fmt.Vnd(toNext)</b> để nhận sao tiếp theo</p>
+            <div class="bar bar-amber bar-thin on-white"><span style="width:@Fmt.Css(c.StarCarry * 100.0 / StarService.StarSpend)%"></span></div>
+            <p class="xs muted">Tính theo số tiền thực trả sau giảm giá, không gồm đồ uống có cồn. Phần lẻ được cộng dồn sang đơn sau.</p>
+        </div>
+    </section>
+
+    <section class="panel2">
+        <div class="panel2-head">
+            <div>
+                <h2 class="panel2-title">Đổi sao lấy voucher</h2>
+                <p class="panel2-desc">Voucher đổi xong nằm trong mục Voucher của tôi, mỗi đơn dùng 1 voucher.</p>
+            </div>
+        </div>
+        <div class="panel2-body"><partial name="_StarRewards" model="(int?)c.Stars" /></div>
+    </section>
+
+    <div class="grid-2">
+        <section class="panel2">
+            <div class="panel2-head"><h2 class="panel2-title">Voucher của tôi</h2></div>
+            <div class="panel2-body flush">
+                @if (Model.MyVouchers.Count == 0)
+                {
+                    <p class="center small muted pad-y pad-x">Chưa có voucher nào. Đổi sao vàng ở phía trên để nhận voucher giảm giá.</p>
+                }
+                else
+                {
+                    <ul class="my-vouchers">
+                        @foreach (var v in Model.MyVouchers)
+                        {
+                            var used = v.UsageLimit is int limit && v.UsageCount >= limit;
+                            var expired = PricingService.EffectiveStatus(v, now) == PromotionStatus.Ended;
+                            var usable = !used && !expired;
+                            <li class="@(usable ? null : "dim")">
+                                <span class="rv-ic">@ShopIcons.Svg("ticket-percent", 20)</span>
+                                <div class="min-w-0 flex-1">
+                                    <p class="mv-title">Giảm @Fmt.Vnd(v.Value) @Tones.Badge(usable ? "fresh" : "neutral", used ? "Đã dùng" : expired ? "Hết hạn" : "Còn hạn")</p>
+                                    <p class="xs muted">Đơn từ @Fmt.Vnd(v.MinOrderValue ?? 0) · HSD @Fmt.Date(v.EndsAt)</p>
+                                    <button type="button" class="code-chip" data-copy="@v.Code" aria-label="Sao chép mã @v.Code">@v.Code <span class="copy-ic">@ShopIcons.Svg("copy", 14)</span></button>
+                                </div>
+                                @if (usable)
+                                {
+                                    <form method="post" asp-controller="Account" asp-action="UseVoucher">
+                                        <input type="hidden" name="code" value="@v.Code" />
+                                        <button class="btn btn-outline btn-sm" type="submit">Dùng ngay</button>
+                                    </form>
+                                }
+                            </li>
+                        }
+                    </ul>
+                }
+            </div>
+        </section>
+
+        <section class="panel2" id="lich-su-sao">
+            <div class="panel2-head"><h2 class="panel2-title">Lịch sử sao vàng</h2></div>
+            <div class="panel2-body flush">
+                @if (Model.Stars.Count == 0)
+                {
+                    <p class="center small muted pad-y pad-x">Chưa có sao nào. Mỗi đơn hàng từ @Fmt.Vnd(StarService.StarSpend) sẽ tích sao vàng.</p>
+                }
+                else
+                {
+                    <ul class="star-history">
+                        @foreach (var e in Model.Stars)
+                        {
+                            <li>
+                                <span class="sh-ic @(e.Delta > 0 ? "plus" : null)">@ShopIcons.Svg("star", 16)</span>
+                                <div class="min-w-0 flex-1">
+                                    <p class="small trunc">@e.Note</p>
+                                    <p class="xs muted">@Fmt.DateTime(e.At)</p>
+                                </div>
+                                <span class="sh-delta tabular @(e.Delta > 0 ? "plus" : null)">@(e.Delta > 0 ? $"+{e.Delta}" : e.Delta.ToString())</span>
+                            </li>
+                        }
+                    </ul>
+                    @if (Model.StarTotal > Model.Stars.Count)
+                    {
+                        <div class="panel2-more"><a class="btn btn-ghost btn-sm" href="@ShopUrls.AccountTab("sao-vang")&sao=@(Model.StarLimit + AccountModel.StarPage)" data-keep-scroll-link>Xem thêm</a></div>
+                    }
+                }
+            </div>
+        </section>
+    </div>
+</div>

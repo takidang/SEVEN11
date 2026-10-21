@@ -1,0 +1,108 @@
+@using SevenEleven.Web.Infrastructure
+@using SevenEleven.Web.Models.Shop
+@model CategoryModel
+@{
+    var c = Model.Category;
+    var sortParam = Model.Sort == "pho-bien" ? null : Model.Sort;
+    var sortLabel = CategoryModel.SortLabel(Model.Sort);
+}
+<div class="stack">
+    <header class="cat-head">
+        <span class="cat-icon"><img src="@ShopImages.Url(c.Icon, 64)" alt="" width="64" height="64" /></span>
+        <div class="min-w-0">
+            <h1 class="page-title">@c.Name</h1>
+            <p class="cat-meta">
+                <span>@Model.Total sản phẩm</span>
+                <span aria-hidden="true">·</span>
+                <span class="ship-24 ship-lg">@ShopIcons.Svg("bike", 16) Giao nhanh 24 phút</span>
+            </p>
+        </div>
+    </header>
+
+    @if (c.AgeRestricted)
+    {
+        <div role="note" class="age-note">
+            <span class="age-pill">18+</span>
+            <p>
+                <b>Chỉ bán cho khách từ đủ 18 tuổi.</b>
+                <span class="muted">Bạn sẽ xác nhận độ tuổi khi thêm vào giỏ; nhân viên giao hàng có thể kiểm tra giấy tờ tuỳ thân khi nhận hàng.</span>
+            </p>
+        </div>
+    }
+
+    <div class="cat-bar">
+        <nav class="cat-chips" aria-label="Nhóm sản phẩm @c.Name">
+            <ul class="no-scrollbar">
+                <li><a class="chip chip-lg @(Model.Subcategory is null ? "active" : null)" href="@ShopUrls.Category(c.Slug, null, sortParam)"
+                       aria-current="@(Model.Subcategory is null ? "page" : null)">Tất cả</a></li>
+                @foreach (var s in c.Subcategories)
+                {
+                    var on = Model.Subcategory?.Id == s.Id;
+                    <li><a class="chip chip-lg @(on ? "active" : null)" href="@ShopUrls.Category(c.Slug, s.Slug, sortParam)" aria-current="@(on ? "page" : null)">@s.Name</a></li>
+                }
+            </ul>
+        </nav>
+        <form method="get" action="@ShopUrls.Category(c.Slug)" class="sort-form">
+            @if (Model.Subcategory is not null)
+            {
+                <input type="hidden" name="nhom" value="@Model.Subcategory.Slug" />
+            }
+            <label class="sort-box @(Model.Sort != "pho-bien" ? "changed" : null)">
+                @ShopIcons.Svg("arrow-up-down", 16)
+                <span class="sr-only">Sắp xếp</span>
+                <select name="sapxep" data-autosubmit aria-label="Sắp xếp: @sortLabel">
+                    @foreach (var (key, label) in CategoryModel.Sorts)
+                    {
+                        if (key == Model.Sort)
+                        {
+                            <option value="@key" selected>@label</option>
+                        }
+                        else
+                        {
+                            <option value="@key">@label</option>
+                        }
+                    }
+                </select>
+            </label>
+            <noscript><button class="btn btn-sm btn-outline" type="submit">Xếp</button></noscript>
+        </form>
+    </div>
+
+    @if (Model.Total == 0)
+    {
+        <partial name="_Empty" model="@(new EmptyState("package-search", "Danh mục này tạm hết sản phẩm", "Hàng mới về mỗi ngày, bạn quay lại sau hoặc xem các danh mục khác nhé.", "Về trang chủ", "/", Css: ""))" />
+    }
+    else if (Model.Subcategory is not null)
+    {
+        var (sub, products) = Model.Sections[0];
+        <section>
+            <div class="sec-head">
+                <h2>@sub.Name</h2>
+                <span class="sec-note">@products.Count sản phẩm</span>
+            </div>
+            @if (products.Count > 0)
+            {
+                <partial name="_ProductGrid" model="products" />
+            }
+            else
+            {
+                <partial name="_Empty" model="@(new EmptyState("package-search", $"Nhóm {sub.Name} tạm hết sản phẩm", "Bạn xem các sản phẩm khác trong danh mục nhé.", $"Xem tất cả {c.Name}", ShopUrls.Category(c.Slug, null, sortParam), Css: "", ActionCss: "btn-outline"))" />
+            }
+        </section>
+    }
+    else
+    {
+        <div class="stack-8">
+            @foreach (var (sub, products) in Model.Sections)
+            {
+                <section>
+                    <div class="sec-head">
+                        <h2>@sub.Name</h2>
+                        <span class="sec-note">@products.Count sản phẩm</span>
+                    </div>
+                    <partial name="_ProductGrid" model="products" />
+                </section>
+            }
+        </div>
+    }
+</div>

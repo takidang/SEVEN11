@@ -1,0 +1,69 @@
+@using SevenEleven.Core.Models
+@using SevenEleven.Core.Services
+@using SevenEleven.Web.Infrastructure
+@using SevenEleven.Web.Models.Shop
+@model AccountModel
+@{
+    var c = Model.Customer;
+    var tier = MembershipService.Info(c.Tier);
+    var now = Model.Now;
+    var tab = Model.Tab;
+}
+<div class="stack acct-page">
+    <div class="account-head acct-head">
+        <div class="acct-id">
+            <span class="avatar avatar-lg">@Fmt.Initials(c.FullName)</span>
+            <div class="min-w-0">
+                <div class="acct-title-row">
+                    <h1>@c.FullName</h1>
+                    <span class="@TierStyle.Chip(c.Tier)">@tier.Label</span>
+                </div>
+                <p class="small muted"><span class="tabular nowrap">@Fmt.Phone(c.Phone)</span> · <span class="nowrap">Thành viên từ @c.JoinedAt.ToString("MM/yyyy", System.Globalization.CultureInfo.InvariantCulture)</span></p>
+            </div>
+        </div>
+        <dl class="acct-stats">
+            <div><dt>Đơn đã mua</dt><dd class="tabular">@Fmt.Num(c.OrderCount)</dd></div>
+            <div><dt>Tổng chi tiêu</dt><dd class="tabular">@Fmt.Vnd(c.TotalSpent)</dd></div>
+            <div><dt>Sao vàng</dt><dd><span class="stars">@ShopIcons.Svg("star", 16) @Fmt.Num(c.Stars)</span><span class="sr-only"> sao vàng</span></dd></div>
+        </dl>
+    </div>
+
+    <partial name="_MemberCard" model="(c, Model.Keep)" />
+
+    <nav class="acct-tabs no-scrollbar" aria-label="Mục tài khoản">
+        @foreach (var (key, label, icon) in AccountModel.Tabs)
+        {
+            var on = key == tab;
+            <a href="@ShopUrls.AccountTab(key)" class="@(on ? "active" : null)" aria-current="@(on ? "page" : null)">
+                @ShopIcons.Svg(icon, 16, "acct-tab-ic")
+                @label
+                @if (key == "don-hang" && Model.ActiveOrders > 0)
+                {
+                    <span class="tab-count" aria-label="@Model.ActiveOrders đơn đang xử lý">@Model.ActiveOrders</span>
+                }
+            </a>
+        }
+    </nav>
+
+    @switch (tab)
+    {
+        case "hang":
+            <partial name="_TabTier" model="Model" />
+            break;
+        case "sao-vang":
+            <partial name="_TabStars" model="Model" />
+            break;
+        case "don-hang":
+            <partial name="_TabOrders" model="Model" />
+            break;
+        case "dia-chi":
+            <partial name="_TabAddresses" model="Model" />
+            break;
+        case "thong-tin":
+            <partial name="_TabProfile" model="Model" />
+            break;
+        default:
+            <partial name="_TabOverview" model="Model" />
+            break;
+    }
+</div>

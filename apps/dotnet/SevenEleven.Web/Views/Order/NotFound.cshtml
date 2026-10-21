@@ -1,0 +1,11 @@
+@using SevenEleven.Web.Infrastructure
+@model string
+<div class="op-notfound">
+    <span class="op-ic op-ic-lg tint-surface">@ShopIcons.Svg("search-x", 24)</span>
+    <h1>Không tìm thấy đơn hàng @Model</h1>
+    <p>Mã đơn có thể bị nhập sai. Kiểm tra lại mã trong tin nhắn xác nhận hoặc xem danh sách đơn trong tài khoản của bạn.</p>
+    <div class="op-notfound-actions">
+        <a class="btn" href="@ShopUrls.AccountTab("don-hang")">Đơn hàng của tôi</a>
+        <a class="btn btn-outline" href="/">Về trang chủ</a>
+    </div>
+</div>

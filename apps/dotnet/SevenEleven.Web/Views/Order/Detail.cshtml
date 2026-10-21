@@ -1,0 +1,300 @@
+@using SevenEleven.Core.Models
+@using SevenEleven.Core.Services
+@using SevenEleven.Web.Infrastructure
+@using SevenEleven.Web.Models.Shop
+@model OrderPageModel
+@{
+    var o = Model.Order;
+    var owner = Model.IsOwner;
+    var store = o.Store;
+    var units = o.Items.Sum(i => i.Quantity);
+    var events = o.Timeline.OrderBy(t => t.At).ThenBy(t => t.Id).ToList();
+    OrderEvent? EventFor(OrderStatus s) => events.LastOrDefault(e => e.Status == s);
+    var running = o.Channel == SalesChannel.Online && o.Status is not (OrderStatus.Completed or OrderStatus.Cancelled);
+    var itemDiscount = o.Items.Sum(i => i.Discount);
+    var orderDiscount = Math.Max(0, o.Discount - itemDiscount);
+    var hasAlcohol = o.Items.Any(i => i.Product is { IsActive: true, AgeRestricted: true });
+    var paymentIcon = o.PaymentMethod switch
+    {
+        PaymentMethod.Card => "credit-card",
+        PaymentMethod.Ewallet => "wallet",
+        PaymentMethod.BankTransfer => "qr-code",
+        _ => "banknote",
+    };
+    var paymentTone = o.PaymentStatus switch { PaymentStatus.Paid => "fresh", PaymentStatus.Refunded => "info", _ => "warning" };
+}
+<div class="stack op" data-order-code="@o.Code" data-order-status="@o.Status" data-order-live="@(running ? "true" : "false")">
+    @if (Model.JustPlaced && o.Channel == SalesChannel.Online && o.Status is not (OrderStatus.Cancelled or OrderStatus.Completed))
+    {
+        <div class="op-placed">
+            <span class="op-placed-ic">@ShopIcons.Svg("check", 24, stroke: 3)</span>
+            <h2>Đặt hàng thành công</h2>
+            <p>
+                @(Model.FirstName is string first && owner ? $"Cảm ơn {first}! " : "Cảm ơn bạn! ")@(store is null ? "Cửa hàng" : $"Cửa hàng {store.Code} – {store.Name}")@(o.Status != OrderStatus.Pending
+                    ? " đã nhận đơn, bạn theo dõi tiến trình giao hàng ngay bên dưới."
+                    : " đang xác nhận đơn và sẽ giao tới bạn trong khoảng 24 phút.")
+            </p>
+            <a class="btn btn-outline op-placed-btn" href="/">Tiếp tục mua sắm</a>
+        </div>
+    }
+
+    <div class="op-head">
+        <div class="min-w-0">
+            <a class="back-link" href="@(Model.SignedIn ? ShopUrls.AccountTab("don-hang") : "/")">@ShopIcons.Svg("chevron-left", 16) @(Model.SignedIn ? "Đơn hàng của tôi" : "Trang chủ")</a>
+            <h1 class="op-title">Đơn hàng @o.Code @Tones.Badge(Tones.Order(o.Status), Labels.Status(o.Status))</h1>
+            <p class="small muted">Đặt lúc @Fmt.DateTime(o.CreatedAt) · @Labels.Channel(o.Channel) · @units sản phẩm</p>
+        </div>
+        <div class="op-actions">
+            @if (owner && OrderFlow.CustomerCanCancel(o.Status))
+            {
+                <form method="post" asp-controller="Order" asp-action="Cancel" asp-route-code="@o.Code" data-dialog-confirm
+                      data-dialog-title="Huỷ đơn hàng @o.Code?"
+                      data-dialog-desc="Cửa hàng chưa xác nhận nên bạn có thể huỷ miễn phí.@(o.PaymentStatus == PaymentStatus.Paid ? " Số tiền đã thanh toán sẽ được hoàn lại trong 1–3 ngày làm việc." : "") Thao tác này không thể hoàn tác."
+                      data-dialog-cancel="Giữ đơn" data-dialog-ok="Huỷ đơn" data-dialog-tone="danger">
+                    <button class="btn btn-danger-solid" type="submit">@ShopIcons.Svg("x", 16) Huỷ đơn</button>
+                </form>
+            }
+            <form method="post" asp-controller="Order" asp-action="Reorder" asp-route-code="@o.Code" data-age-gate="@(hasAlcohol && !Model.AgeConfirmed ? "true" : "false")">
+                <input type="hidden" name="ageConfirmed" value="false" />
+                <button class="btn btn-outline" type="submit">@ShopIcons.Svg("rotate-ccw", 16) Mua lại</button>
+            </form>
+        </div>
+    </div>
+
+    <div class="op-grid">
+        <div class="stack min-w-0">
+            @if (o.Channel == SalesChannel.InStore)
+            {
+                <section class="panel2 op-instore">
+                    <span class="op-ic tint-brand">@ShopIcons.Svg("store", 20)</span>
+                    <div>
+                        <p class="strong">Đã mua tại cửa hàng</p>
+                        <p class="small muted">Thanh toán tại quầy lúc @Fmt.DateTime(o.CreatedAt).</p>
+                    </div>
+                </section>
+            }
+            else if (o.Status == OrderStatus.Cancelled)
+            {
+                var cancelled = EventFor(OrderStatus.Cancelled);
+                <section class="panel2 panel2-body stack">
+                    <div class="op-cancelled">
+                        <span class="op-ic op-ic-red">@ShopIcons.Svg("x", 20, stroke: 2.5)</span>
+                        <div class="min-w-0">
+                            <p class="strong">Đơn hàng đã bị huỷ</p>
+                            <p class="small">Lý do: @(string.IsNullOrWhiteSpace(cancelled?.Note) ? "Không ghi lý do" : cancelled!.Note)</p>
+                            @if (cancelled is not null)
+                            {
+                                <p class="xs muted">Huỷ lúc @Fmt.DateTime(cancelled.At)@(cancelled.By is string by ? $" bởi {by}" : "")</p>
+                            }
+                        </div>
+                    </div>
+                    <div>
+                        <p class="op-kicker">Lịch sử đơn hàng</p>
+                        <ol class="op-history">
+                            @foreach (var e in events)
+                            {
+                                <li><span class="tabular xs muted">@Fmt.Time(e.At)</span>@Tones.Badge(Tones.Order(e.Status), Labels.Status(e.Status))@if (e.By is string by) { <span class="xs muted trunc">@by</span> }</li>
+                            }
+                        </ol>
+                    </div>
+                </section>
+            }
+            else
+            {
+                var (title, description) = OrderPageModel.Headline(o.Status);
+                var current = Array.IndexOf(OrderPageModel.Flow, o.Status);
+                <section class="panel2">
+                    <div class="op-progress-head">
+                        <span class="op-ic @(o.Status == OrderStatus.Completed ? "op-ic-done" : "tint-brand")">@ShopIcons.Svg(OrderPageModel.StepIcon(o.Status), 20)</span>
+                        <div class="min-w-0 flex-1">
+                            <p class="strong">@title</p>
+                            <p class="small muted">@description</p>
+                        </div>
+                        @if (o.Status == OrderStatus.Completed)
+                        {
+                            if (EventFor(OrderStatus.Completed) is { } done)
+                            {
+                                @Tones.Badge("fresh", $"Đã giao lúc {Fmt.Time(done.At)}", extra: "op-done-badge")
+                            }
+                        }
+                        else if (o.Delivery is { } dl)
+                        {
+                            var left = (int)Math.Ceiling((dl.Eta - Model.Now).TotalMinutes);
+                            <div class="op-eta">
+                                <p class="small">Dự kiến giao <b class="tabular">@Fmt.Time(dl.Eta.AddMinutes(-10)) – @Fmt.Time(dl.Eta)</b></p>
+                                @if (left > 0)
+                                {
+                                    <span class="badge tone-orange">@ShopIcons.Svg("timer", 14) còn ~@left phút</span>
+                                }
+                                else
+                                {
+                                    <span class="badge tone-warning">@ShopIcons.Svg("timer", 14) Sắp tới, chậm hơn dự kiến</span>
+                                }
+                            </div>
+                        }
+                    </div>
+                    <ol class="op-steps" aria-label="Tiến trình đơn hàng">
+                        @for (var i = 0; i < OrderPageModel.Flow.Length; i++)
+                        {
+                            var step = OrderPageModel.Flow[i];
+                            var at = EventFor(step);
+                            var isDone = i < current || (i == current && step == OrderStatus.Completed);
+                            var isCurrent = i == current && !isDone;
+                            <li class="@(isDone ? "done" : isCurrent ? "current" : null) @(i < current ? "line-done" : null)" aria-current="@(isCurrent ? "step" : null)">
+                                <span class="op-step-ic">@ShopIcons.Svg(isDone ? "check" : OrderPageModel.StepIcon(step), 20, stroke: isDone ? 2.5 : 2)</span>
+                                <span class="op-step-text">
+                                    <span class="op-step-name">@Labels.Status(step)</span>
+                                    <span class="tabular xs muted">@(at is null ? "--:--" : Fmt.Time(at.At))</span>
+                                </span>
+                            </li>
+                        }
+                    </ol>
+                </section>
+            }
+
+            <section class="panel2">
+                <div class="panel2-head"><h2 class="panel2-title">Sản phẩm <span class="muted fw-normal">(@units)</span></h2></div>
+                <ul class="op-items">
+                    @foreach (var item in o.Items)
+                    {
+                        <li>
+                            <span class="op-item-img">
+                                @if (item.Product?.Image is string img && img.Length > 0)
+                                {
+                                    <img src="@ShopImages.Url(img, 64)" alt="@item.Name" width="64" height="64" loading="lazy" />
+                                }
+                                else
+                                {
+                                    @ShopIcons.Svg("package", 22, "muted")
+                                }
+                            </span>
+                            <div class="min-w-0 flex-1">
+                                @if (item.Product is { } p)
+                                {
+                                    <a class="op-item-name" href="@ShopUrls.Product(p.Slug)">@item.Name</a>
+                                }
+                                else
+                                {
+                                    <p class="op-item-name">@item.Name</p>
+                                }
+                                <p class="tabular xs muted">@Fmt.Vnd(item.UnitPrice) × @item.Quantity</p>
+                                @if (item.Discount > 0)
+                                {
+                                    <p class="tabular xs sale-text strong-500">Đã giảm @Fmt.Vnd(item.Discount)@(item.PromoLabel is string label ? $" · {label}" : "")</p>
+                                }
+                            </div>
+                            <div class="op-item-total">
+                                @if (item.Discount > 0)
+                                {
+                                    <s class="tabular xs muted">@Fmt.Vnd(item.LineTotal + item.Discount)</s>
+                                }
+                                <b class="tabular small">@Fmt.Vnd(item.LineTotal)</b>
+                            </div>
+                        </li>
+                    }
+                </ul>
+            </section>
+        </div>
+
+        <div class="stack">
+            @if (store is not null)
+            {
+                <section class="panel2">
+                    <div class="panel2-head"><h2 class="panel2-title">Cửa hàng phục vụ</h2></div>
+                    <div class="panel2-body stack stack-3">
+                        <div class="op-row">
+                            <span class="op-ic op-ic-sm tint-brand">@ShopIcons.Svg("store", 20)</span>
+                            <div class="min-w-0">
+                                <p class="small strong">@store.Code – @store.Name</p>
+                                <p class="xs muted lh-5">@store.Address, @store.Ward, @store.Province</p>
+                                <p class="xs muted lh-5">Mở cửa @store.OpenHours</p>
+                            </div>
+                        </div>
+                        <a class="btn btn-outline op-call" href="tel:@store.Phone">@ShopIcons.Svg("phone", 16) Gọi cửa hàng @Fmt.Phone(store.Phone)</a>
+                    </div>
+                </section>
+            }
+
+            @if (o.Delivery is { } d)
+            {
+                <section class="panel2">
+                    <div class="panel2-head"><h2 class="panel2-title">Thông tin nhận hàng</h2></div>
+                    <div class="panel2-body op-delivery">
+                        <p>@ShopIcons.Svg("user-round", 16, "muted")<span><b class="strong-500">@d.Recipient</b><span class="muted"> · </span><span class="tabular">@(owner ? Fmt.Phone(d.Phone) : OrderPageModel.MaskPhone(d.Phone))</span></span></p>
+                        <p>@ShopIcons.Svg("map-pin", 16, "text-orange")<span>@(owner ? d.Address : OrderPageModel.MaskAddress(d.Address))</span></p>
+                        @if (owner && !string.IsNullOrWhiteSpace(d.Note))
+                        {
+                            <p>@ShopIcons.Svg("message-square-text", 16, "muted")<span class="muted">@d.Note</span></p>
+                        }
+                        @if (d.ShipperName is string shipper)
+                        {
+                            <div class="op-shipper">
+                                @ShopIcons.Svg("bike", 16, "text-brand")
+                                <span class="min-w-0">
+                                    <span class="strong-500">Nhân viên giao hàng</span>
+                                    <span class="op-shipper-sub muted">@shipper@(d.ShipperPhone is string sp ? $" · {(owner ? Fmt.Phone(sp) : OrderPageModel.MaskPhone(sp))}" : "")@(d.DistanceKm is double km ? $" · {DeliveryService.FormatDistance(km)}" : "")</span>
+                                </span>
+                            </div>
+                        }
+                        @if (!owner)
+                        {
+                            <p class="xs muted">@ShopIcons.Svg("lock-keyhole", 14)<span>Đăng nhập bằng tài khoản đã đặt đơn để xem đầy đủ thông tin nhận hàng.</span></p>
+                        }
+                    </div>
+                </section>
+            }
+
+            <section class="panel2">
+                <div class="panel2-head"><h2 class="panel2-title">Thanh toán</h2></div>
+                <div class="panel2-body stack stack-3">
+                    <div class="op-pay">
+                        <p class="small strong-500">@ShopIcons.Svg(paymentIcon, 16, "text-brand") <span class="trunc">@Labels.Payment(o.PaymentMethod)</span></p>
+                        @Tones.Badge(paymentTone, Labels.PaymentState(o.PaymentStatus))
+                    </div>
+                    <dl class="sum-rows">
+                        <div><dt>Tạm tính</dt><dd>@Fmt.Vnd(o.Subtotal)</dd></div>
+                        @if (itemDiscount > 0)
+                        {
+                            <div><dt>Giảm giá sản phẩm</dt><dd class="sale-text">-@Fmt.Vnd(itemDiscount)</dd></div>
+                        }
+                        @if (orderDiscount > 0)
+                        {
+                            <div><dt>@(o.PromotionCode is string pc ? $"Ưu đãi đơn hàng (mã {pc})" : "Ưu đãi thành viên")</dt><dd class="sale-text">-@Fmt.Vnd(orderDiscount)</dd></div>
+                        }
+                        @if (o.Channel == SalesChannel.Online)
+                        {
+                            <div><dt>Phí giao hàng</dt><dd class="@(o.ShippingFee > 0 ? null : "fresh-text strong")">@(o.ShippingFee > 0 ? Fmt.Vnd(o.ShippingFee) : "Miễn phí")</dd></div>
+                        }
+                    </dl>
+                    <div class="op-total"><span class="strong">Tổng cộng</span><b class="tabular">@Fmt.Vnd(o.Total)</b></div>
+                </div>
+            </section>
+
+            @if (owner && o.StarsEarned > 0 && o.Status != OrderStatus.Cancelled)
+            {
+                <a class="op-stars" href="@ShopUrls.AccountTab("sao-vang")">
+                    @ShopIcons.Svg("star", 20, "i-star")
+                    <span class="small flex-1">Đơn này tích thêm <b>@o.StarsEarned sao vàng</b></span>
+                    @ShopIcons.Svg("chevron-right", 16, "muted")
+                </a>
+            }
+        </div>
+    </div>
+</div>
+@section Scripts {
+    <script>
+        // Đơn đang chạy: hỏi trạng thái mỗi 15 giây, cửa hàng vừa chuyển bước thì tải lại trang kèm thông báo.
+        (function () {
+            var root = document.querySelector("[data-order-live='true']");
+            if (!root) return;
+            var code = root.getAttribute("data-order-code"), status = root.getAttribute("data-order-status");
+            setInterval(function () {
+                if (document.visibilityState !== "visible") return;
+                fetch("/Order/Status?code=" + encodeURIComponent(code), { headers: { "X-Requested-With": "fetch" } })
+                    .then(function (r) { return r.ok ? r.json() : null; })
+                    .then(function (d) { if (d && d.status !== status) location.replace("/don-hang/" + encodeURIComponent(code) + "?capnhat=1"); })
+                    .catch(function () {});
+            }, 15000);
+        })();
+    </script>
+}

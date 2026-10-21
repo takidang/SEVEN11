@@ -1,0 +1,64 @@
+@using System.Text.Json
+@using SevenEleven.Core.Models
+@using SevenEleven.Core.Services
+@model SevenEleven.Web.Controllers.AddressFormModel
+@{
+    var a = Model.Input;
+    var provinces = Model.Stores.Select(s => s.Province).Distinct().ToList();
+    var storesJson = JsonSerializer.Serialize(Model.Stores
+        .Where(s => s.Status == StoreStatus.Active)
+        .Select(s => new { code = s.Code, name = s.Name, province = s.Province, lat = s.Lat, lng = s.Lng }));
+    var labels = new[] { "Nhà riêng", "Công ty", "Trường học" };
+}
+<div class="panel auth" style="max-width:560px">
+    <h2>@ViewData["Title"]</h2>
+    @if (Model.Error is string error)
+    {
+        <div class="alert alert-error">@error</div>
+    }
+
+    <div class="locate" data-locate data-stores="@storesJson" data-radius="@DeliveryService.RadiusKm.ToString(System.Globalization.CultureInfo.InvariantCulture)">
+        <button type="button" class="btn btn-outline btn-block" data-locate-button>Dùng vị trí hiện tại</button>
+        <p class="hint" data-locate-status style="margin:8px 0 0">Điền sẵn địa chỉ và tìm cửa hàng gần bạn nhất. Trình duyệt sẽ hỏi quyền truy cập vị trí.</p>
+    </div>
+
+    <form method="post" asp-action="Address" id="address-form">
+        <input type="hidden" name="Id" value="@a.Id" />
+        <input type="hidden" name="returnUrl" value="@Model.ReturnUrl" />
+        <input type="hidden" name="Lat" value="@a.Lat" data-field="lat" />
+        <input type="hidden" name="Lng" value="@a.Lng" data-field="lng" />
+
+        <label class="field"><span>Tên gợi nhớ</span>
+            <input name="Label" value="@a.Label" maxlength="30" required list="address-labels" placeholder="Nhà riêng, Công ty…" />
+            <datalist id="address-labels">
+                @foreach (var l in labels)
+                {
+                    <option value="@l"></option>
+                }
+            </datalist>
+        </label>
+        <div class="field-row">
+            <label class="field"><span>Người nhận</span><input name="Recipient" value="@a.Recipient" maxlength="60" required /></label>
+            <label class="field"><span>Số điện thoại</span><input name="Phone" value="@a.Phone" type="tel" required /></label>
+        </div>
+        <label class="field"><span>Tỉnh / thành phố</span>
+            <select name="Province" data-field="province">
+                @foreach (var p in provinces)
+                {
+                    <option value="@p" selected="@(p == a.Province)">@p</option>
+                }
+            </select>
+        </label>
+        <label class="field"><span>Phường / xã</span><input name="Ward" value="@a.Ward" maxlength="60" required data-field="ward" /></label>
+        <label class="field"><span>Số nhà, tên đường</span><input name="Line" value="@a.Line" maxlength="120" required data-field="line" /></label>
+        <label class="check"><input type="checkbox" name="IsDefault" value="true" checked="@a.IsDefault" /> Đặt làm địa chỉ mặc định</label>
+
+        <div class="locate-result" data-locate-result hidden></div>
+
+        <div style="display:flex;gap:10px;margin-top:16px">
+            <a class="btn btn-outline" href="@(Url.IsLocalUrl(Model.ReturnUrl) ? Model.ReturnUrl : "/tai-khoan?tab=dia-chi")">Huỷ</a>
+            <button class="btn" type="submit" style="flex:1">Lưu địa chỉ</button>
+        </div>
+    </form>
+</div>
+<script src="~/js/geo.js" asp-append-version="true"></script>

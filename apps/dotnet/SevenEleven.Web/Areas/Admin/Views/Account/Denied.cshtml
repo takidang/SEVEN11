@@ -1,0 +1,24 @@
+@{
+    Layout = null;
+    string? role = ViewBag.Role;
+    string home = ViewBag.Home;
+}
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Không có quyền – Quản lý 7-Eleven</title>
+    <link rel="stylesheet" href="~/css/admin.css" asp-append-version="true" />
+    <link rel="icon" href="~/img/logo-mark.png" />
+</head>
+<body class="admin login-page">
+    <main class="login">
+        <section class="panel">
+            <h1>Bạn không có quyền xem trang này</h1>
+            <p class="muted">Vai trò @(role ?? "của bạn") không được truy cập mục này. Liên hệ quản trị chuỗi nếu bạn cần quyền.</p>
+            <a class="btn btn-primary" href="@home">Về trang của tôi</a>
+        </section>
+    </main>
+</body>
+</html>

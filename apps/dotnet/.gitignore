@@ -1,0 +1,16 @@
+# Build output
+bin/
+obj/
+.vs/
+*.user
+TestResults/
+native/build/
+
+# SQLite demo database: created and seeded on first run, may hold real sign-ups
+*.db
+*.db-shm
+*.db-wal
+*.db.bak*
+
+# e2e (npm i -D playwright)
+e2e/node_modules/

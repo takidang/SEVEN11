@@ -1,0 +1,62 @@
+@using SevenEleven.Web.Areas.Admin.Controllers
+@{
+    Layout = null;
+}
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Đăng nhập – Quản lý 7-Eleven</title>
+    <link rel="stylesheet" href="~/css/admin.css" asp-append-version="true" />
+    <link rel="icon" href="~/img/logo-mark.png" />
+</head>
+<body class="admin login-page">
+    <main class="login">
+        <div class="login-brand">
+            <img src="~/img/logo-mark.png" alt="" width="44" height="44" />
+            <div><b>7-Eleven</b><small>Khu quản lý cửa hàng</small></div>
+        </div>
+        <section class="panel">
+            <h1>Đăng nhập nhân viên</h1>
+            <p class="muted">Dùng email công ty. Thu ngân vào thẳng máy bán hàng, quản lý vào bảng điều khiển.</p>
+            @if (ViewBag.Error is string error)
+            {
+                <div class="flash flash-error" role="alert">@error</div>
+            }
+            <form method="post" asp-area="Admin" asp-controller="Account" asp-action="Login" class="form">
+                <input type="hidden" name="returnUrl" value="@ViewBag.ReturnUrl" />
+                <label class="field"><span>Email</span>
+                    <input id="email" name="email" type="email" value="@ViewBag.Email" required autocomplete="username" placeholder="ten@7eleven.demo" />
+                </label>
+                <label class="field"><span>Mật khẩu</span>
+                    <input id="password" name="password" type="password" required autocomplete="current-password" />
+                </label>
+                <button class="btn btn-primary btn-block" type="submit">Đăng nhập</button>
+            </form>
+            <div class="demo-accounts">
+                <p class="muted">Tài khoản demo, mật khẩu <b>123456</b> — bấm để điền sẵn:</p>
+                @foreach (var (email, role, hint) in AccountController.DemoAccounts)
+                {
+                    <button type="button" class="demo-account" data-email="@email">
+                        <b>@role</b><small>@email · @hint</small>
+                    </button>
+                }
+            </div>
+        </section>
+        <p class="muted" style="text-align:center">
+            <a asp-area="" asp-controller="Home" asp-action="Index">← Về cửa hàng online</a><br />
+            Đồ án môn học, không phải hệ thống chính thức của 7-Eleven.
+        </p>
+    </main>
+    <script>
+        document.querySelectorAll("[data-email]").forEach(function (b) {
+            b.addEventListener("click", function () {
+                document.getElementById("email").value = b.getAttribute("data-email");
+                document.getElementById("password").value = "123456";
+                document.querySelectorAll("[data-email]").forEach(function (x) { x.classList.toggle("active", x === b); });
+            });
+        });
+    </script>
+</body>
+</html>

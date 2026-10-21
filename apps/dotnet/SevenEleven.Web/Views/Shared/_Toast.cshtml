@@ -1,0 +1,42 @@
+@using SevenEleven.Web.Infrastructure
+@model Toast
+@{
+    var tone = Model.Tone;
+    var legacy = tone == "success" ? " alert-ok" : tone == "error" ? " alert-error" : "";
+    var icon = tone switch { "error" => "octagon-x", "info" => "info", "sms" => "message-square-text", _ => "circle-check" };
+}
+<div class="toast toast-@tone@legacy" role="@(tone == "error" ? "alert" : "status")" data-duration="@(Model.Duration?.ToString() ?? (tone == "error" ? "6000" : "4000"))"
+     data-toast-id="@(tone == "sms" ? "demo-sms" : null)">
+    <span class="toast-icon">@ShopIcons.Svg(icon, 16)</span>
+    <div class="toast-body">
+        <p class="toast-title">@Model.Title</p>
+        @if (tone == "sms" && Model.Desc is string code)
+        {
+            <p class="toast-desc">7-Eleven: Mã xác minh của bạn là <b class="sms-code">@code</b>, hiệu lực 5 phút. Không chia sẻ mã này cho bất kỳ ai.</p>
+        }
+        else if (!string.IsNullOrEmpty(Model.Desc))
+        {
+            <p class="toast-desc">@Model.Desc</p>
+        }
+        @if (Model.Action is { } action)
+        {
+            <div class="toast-act">
+                @if (action.Post is { } fields)
+                {
+                    <form method="post" action="@action.Href" asp-antiforgery="true" data-keep-scroll>
+                        @foreach (var (name, value) in fields)
+                        {
+                            <input type="hidden" name="@name" value="@value" />
+                        }
+                        <button type="submit">@action.Label</button>
+                    </form>
+                }
+                else
+                {
+                    <a href="@action.Href">@action.Label</a>
+                }
+            </div>
+        }
+    </div>
+    <button type="button" class="toast-x" aria-label="Đóng thông báo">@ShopIcons.Svg("x", 14)</button>
+</div>

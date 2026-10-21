@@ -1,0 +1,118 @@
+@using SevenEleven.Web.Areas.Admin.Controllers
+@model StoreStockModel
+@{
+    var store = ViewBag.ScopeStore as Store;
+    var here = Context.Request.Path + Context.Request.QueryString;
+    string Link(int page) => "/Admin/Stock?" + string.Join("&", new Dictionary<string, string?> { ["q"] = Model.Query, ["cat"] = Model.Category, ["state"] = Model.State, ["page"] = page.ToString() }
+        .Where(kv => !string.IsNullOrEmpty(kv.Value)).Select(kv => $"{kv.Key}={Uri.EscapeDataString(kv.Value!)}"));
+    var pager = (Model.Page, Model.Pages, (Func<int, string>)Link);
+    var filters = (Model.Categories, Model.Counts, Model.Query, Model.Category, Model.State, Model.Total);
+}
+<div class="page-head">
+    <div>
+        <h1>Kho hàng</h1>
+        <p>Cửa hàng @store?.Code – @store?.Name · vốn tồn kho @Money.Format(Model.InventoryCost)@(Model.CountedInSession > 0 ? $" · đang kiểm kê {Model.CountedInSession} mặt hàng" : "")</p>
+    </div>
+    <div class="page-actions">
+        <partial name="_Tabs" model="@("stock")" />
+        <a class="btn btn-primary" asp-controller="Purchasing" asp-action="New">@Icons.Svg("purchasing", 16) Lập phiếu nhập</a>
+    </div>
+</div>
+
+@if (Model.Selected is { } sel)
+{
+    var p = sel.Product!;
+    var adjustError = TempData["AdjustError"] as string;
+    var adjustQuantity = TempData["AdjustQuantity"] as string ?? sel.Quantity.ToString();
+    var adjustReason = TempData["AdjustReason"] as string;
+    var adjustNote = TempData["AdjustNote"] as string;
+    var minError = TempData["MinError"] as string;
+    var minValue = TempData["MinValue"] as string ?? sel.MinQuantity.ToString();
+    <section class="panel" style="max-width:620px">
+        @if (Model.Action == "adjust")
+        {
+            <div class="panel-head"><div><h2>Điều chỉnh tồn kho · @p.Name</h2><p>Nhập số lượng đếm thực tế tại cửa hàng @store?.Code.</p></div><a class="btn btn-sm" href="/Admin/Stock">Đóng</a></div>
+            <form method="post" asp-action="Adjust" class="form" data-adjust data-system="@sel.Quantity">
+                <input type="hidden" name="productId" value="@p.Id" />
+                <input type="hidden" name="returnUrl" value="/Admin/Stock" />
+                <div class="form-grid">
+                    <label class="field"><span>Tồn hệ thống</span><input value="@sel.Quantity" disabled /></label>
+                    <label class="field"><span>Thực tế</span><input name="quantity" inputmode="numeric" value="@adjustQuantity" data-actual autofocus class="@(adjustError is not null && adjustError.Contains("số lượng", StringComparison.OrdinalIgnoreCase) ? "invalid" : null)" /></label>
+                </div>
+                <p class="cell-sub" data-adjust-diff>Chênh lệch: 0</p>
+                <label class="field"><span>Lý do</span>
+                    <select name="reason">@foreach (var r in InventoryService.AdjustReasons) { <option selected="@(r == adjustReason)">@r</option> }</select>
+                </label>
+                <label class="field"><span>Ghi chú</span><input name="note" maxlength="200" value="@adjustNote" placeholder="VD: vỡ 2 chai khi xếp kệ" class="@(adjustError is not null && adjustError.Contains("lý do") ? "invalid" : null)" /></label>
+                @if (adjustError is not null)
+                {
+                    <p class="field-error" role="alert">@adjustError</p>
+                }
+                <div class="form-actions"><a class="btn" href="/Admin/Stock">Huỷ</a><button class="btn btn-primary" type="submit">Lưu điều chỉnh</button></div>
+            </form>
+        }
+        else
+        {
+            <div class="panel-head"><div><h2>Sửa định mức tối thiểu · @p.Name</h2><p>Áp dụng cho cửa hàng @store?.Code.</p></div><a class="btn btn-sm" href="/Admin/Stock">Đóng</a></div>
+            <form method="post" asp-action="SetMin" class="form">
+                <input type="hidden" name="productId" value="@p.Id" />
+                <input type="hidden" name="returnUrl" value="/Admin/Stock" />
+                <label class="field"><span>Định mức tối thiểu <small class="help">Khi tồn bằng hoặc thấp hơn định mức, mặt hàng được cảnh báo “Sắp hết” và gợi ý khi tạo phiếu nhập.</small></span>
+                    <input name="minQuantity" inputmode="numeric" value="@minValue" maxlength="5" autofocus class="@(minError is not null ? "invalid" : null)" /></label>
+                @if (minError is not null)
+                {
+                    <p class="field-error" role="alert">@minError</p>
+                }
+                <p class="cell-sub">Tồn hiện tại @sel.Quantity · @InventoryService.Label(InventoryService.StateOf(sel.Quantity, sel.MinQuantity))</p>
+                <div class="form-actions"><a class="btn" href="/Admin/Stock">Huỷ</a><button class="btn btn-primary" type="submit">Lưu định mức</button></div>
+            </form>
+        }
+    </section>
+}
+
+<div class="panel flush">
+    <partial name="_Filters" model="filters" />
+    @if (Model.Levels.Count == 0)
+    {
+        <p class="empty">Không có mặt hàng nào khớp bộ lọc.</p>
+    }
+    else
+    {
+        <div class="table-wrap">
+            <table class="table">
+                <thead>
+                    <tr><th>Mặt hàng</th><th>Ngành hàng</th><th>Tình trạng</th><th class="num">Giá vốn tồn</th><th class="num">Định mức</th><th class="num"></th></tr>
+                </thead>
+                <tbody>
+                    @foreach (var s in Model.Levels)
+                    {
+                        var p = s.Product!;
+                        var state = InventoryService.StateOf(s.Quantity, s.MinQuantity);
+                        <tr>
+                            <td>
+                                <span class="product-cell">
+                                    <img class="thumb" src="@p.Image" alt="" loading="lazy" />
+                                    <span>@p.Name<span class="cell-sub">@p.Sku · @p.Unit@(p.ShelfLifeDays is int d ? $" · hạn {d} ngày" : "")</span></span>
+                                </span>
+                            </td>
+                            <td>@p.Category?.Name</td>
+                            <td>
+                                @if (state == StockState.Out) { <span class="badge danger">Hết hàng</span> }
+                                else if (state == StockState.Low) { <span class="badge warning">Sắp hết · còn @s.Quantity</span> }
+                                else { <span class="badge fresh">Còn @s.Quantity</span> }
+                            </td>
+                            <td class="num">@Money.Format((long)s.Quantity * p.CostPrice)</td>
+                            <td class="num">@s.MinQuantity</td>
+                            <td class="num">
+                                <a class="btn btn-sm" href="/Admin/Stock?adjust=@p.Id">Điều chỉnh tồn</a>
+                                <a class="btn btn-sm" href="/Admin/Stock?min=@p.Id">Sửa định mức</a>
+                                <a class="btn btn-sm" asp-controller="Products" asp-action="Edit" asp-route-id="@p.Id" title="Xem sản phẩm">@Icons.Svg("arrow", 14)</a>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        <partial name="_Pager" model="pager" />
+    }
+</div>

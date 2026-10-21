@@ -1,0 +1,50 @@
+@using SevenEleven.Web.Areas.Admin.Controllers
+@model ChainStockModel
+@{
+    string Link(int page) => "/Admin/Stock?" + string.Join("&", new Dictionary<string, string?> { ["q"] = Model.Query, ["cat"] = Model.Category, ["state"] = Model.State, ["page"] = page.ToString() }
+        .Where(kv => !string.IsNullOrEmpty(kv.Value)).Select(kv => $"{kv.Key}={Uri.EscapeDataString(kv.Value!)}"));
+    var pager = (Model.Page, Model.Pages, (Func<int, string>)Link);
+    var filters = (Model.Categories, Model.Counts, Model.Query, Model.Category, Model.State, Model.Total);
+}
+<div class="page-head">
+    <div>
+        <h1>Kho hàng · toàn chuỗi</h1>
+        <p>Vốn tồn kho cả chuỗi @Money.Format(Model.InventoryCost). Chọn một cửa hàng ở góc trên để kiểm kê và chỉnh số.</p>
+    </div>
+    <partial name="_Tabs" model="@("stock")" />
+</div>
+
+<div class="panel flush">
+    <partial name="_Filters" model="filters" />
+    @if (Model.Rows.Count == 0)
+    {
+        <p class="empty">Không có mặt hàng nào khớp bộ lọc.</p>
+    }
+    else
+    {
+        <div class="table-wrap">
+            <table class="table">
+                <thead><tr><th>Mặt hàng</th><th>Ngành hàng</th><th class="num">Tổng tồn</th><th class="num">Số cửa hàng hết</th><th class="num">Số cửa hàng sắp hết</th><th class="num">Giá vốn tồn</th></tr></thead>
+                <tbody>
+                    @foreach (var r in Model.Rows)
+                    {
+                        <tr>
+                            <td>
+                                <span class="product-cell">
+                                    <img class="thumb" src="@r.Product.Image" alt="" loading="lazy" />
+                                    <span>@r.Product.Name<span class="cell-sub">@r.Product.Sku</span></span>
+                                </span>
+                            </td>
+                            <td>@r.Product.Category?.Name</td>
+                            <td class="num">@Money.FormatNumber(r.Quantity)</td>
+                            <td class="num @(r.StoresOut > 0 ? "state-out" : null)">@r.StoresOut</td>
+                            <td class="num @(r.StoresLow > 0 ? "state-low" : null)">@r.StoresLow</td>
+                            <td class="num">@Money.Format(r.Cost)</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        <partial name="_Pager" model="pager" />
+    }
+</div>

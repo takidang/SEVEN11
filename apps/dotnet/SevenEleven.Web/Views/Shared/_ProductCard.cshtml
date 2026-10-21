@@ -1,0 +1,27 @@
+@using SevenEleven.Core.Models
+@using SevenEleven.Web.Infrastructure
+@inject ShopContext Shop
+@model Product
+@{
+    // Thẻ sản phẩm như 7-eleven.vn: ảnh vuông, tên 2 dòng, giá đậm kèm giá gạch và % giảm, đếm ngược
+    // flash sale, "Giao 24 phút" và nút "+" tròn (thành nút − số lượng + khi đã có trong giỏ).
+    // Viết gọn (ít khoảng trắng) vì trang chủ có hơn trăm thẻ.
+    var p = Model;
+    var d = Shop.Display(p);
+    var href = ShopUrls.Product(p.Slug);
+    var qty = Shop.InCart(p.Id);
+    var here = (Context.Request.Path.Value ?? "/") + Context.Request.QueryString;
+}
+<article class="card pcard"><a href="@href" class="pcard-img" tabindex="-1" aria-hidden="true"><img src="@ShopImages.Url(p.Image, 180)" alt="@p.Name" width="180" height="180" loading="lazy" decoding="async" />@if (d.Flash is not null || p.IsNew || p.AgeRestricted)
+{<span class="pcard-badges">@if (d.Flash is not null) {<span class="pill-tag pill-flash">Flash sale</span>}@if (p.IsNew) {<span class="pill-tag pill-new">Mới</span>}@if (p.AgeRestricted) {<span class="pill-tag pill-age">18+</span>}</span>}</a>
+<div class="pcard-body"><h3 class="pcard-name"><a href="@href">@p.Name</a></h3>
+<div class="pcard-price"><div class="now"><b>@Fmt.Vnd(d.Price)</b>@if (d.Percent is int pct) {<span class="pct">-@pct%</span>}</div>@if (d.CompareAt is int was && was > d.Price) {<div class="was">@Fmt.Vnd(was)</div>}</div>
+@if (d.Flash is not null && d.FlashEndsAt is DateTime ends)
+{
+    var left = Fmt.SecondsLeft(ends, Shop.Now);
+    <span class="cd" data-left="@left" data-hide-on-end>Còn <b data-clock>@Fmt.Clock(left)</b></span>
+}
+<div class="pcard-foot"><span class="ship-24"><i class="i-bike" aria-hidden="true"></i>Giao 24 phút</span><div class="qa" data-qa="@p.Id" data-name="@p.Name" data-age="@(p.AgeRestricted ? "true" : "false")" data-return="@here">@if (qty > 0)
+{<div class="qa-step"><form method="post" asp-controller="Cart" asp-action="Step" data-ajax><input type="hidden" name="productId" value="@p.Id" /><input type="hidden" name="returnUrl" value="@here" /><input type="hidden" name="delta" value="-1" /><button type="submit" aria-label="Bớt 1">@ShopIcons.Svg("minus", 16)</button></form><span class="qa-n">@qty</span><form method="post" asp-controller="Cart" asp-action="Step" data-ajax><input type="hidden" name="productId" value="@p.Id" /><input type="hidden" name="returnUrl" value="@here" /><input type="hidden" name="delta" value="1" /><button type="submit" class="qa-inc" aria-label="Thêm 1">@ShopIcons.Svg("plus", 16)</button></form></div>}
+else
+{<form method="post" asp-controller="Cart" asp-action="Add" data-ajax data-age-gate="@(p.AgeRestricted ? "true" : "false")"><input type="hidden" name="productId" value="@p.Id" /><input type="hidden" name="returnUrl" value="@here" /><input type="hidden" name="ageConfirmed" value="false" /><button type="submit" class="qa-plus" aria-label="Thêm @p.Name vào giỏ">@ShopIcons.Svg("plus", 20, stroke: 2.5)</button></form>}</div></div></div></article>

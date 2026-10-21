@@ -1,0 +1,139 @@
+@using SevenEleven.Core.Models
+@using SevenEleven.Core.Services
+@using SevenEleven.Web.Infrastructure
+@using SevenEleven.Web.Models.Shop
+@model AccountModel
+@{
+    var c = Model.Customer;
+    var tier = MembershipService.Info(c.Tier);
+    var now = Model.Now;
+    var birthdayMonth = c.Birthday?.Month;
+    var isBirthdayMonth = birthdayMonth == now.Month;
+    var birthdayPercent = Math.Round(tier.BirthdayDrinkDiscount * 100);
+    var recent = Model.Orders.Take(3).ToList();
+    (string Icon, string Title, string Desc)[] benefits =
+    [
+        ("cup-soda", $"Giảm {Fmt.Vnd(tier.DrinkVoucher)} mỗi ly đồ uống", $"{tier.VouchersPerMonth} voucher mỗi tháng, dùng tối đa {MembershipService.MaxDrinkVouchersPerOrder} ly mỗi đơn"),
+        ("gift", tier.FreeDrink, "Quyền lợi cơ bản của hạng thành viên"),
+        ("cake", $"Tháng sinh nhật giảm {birthdayPercent}% đồ uống", "Áp dụng khi mua từ 3 ly trong tháng sinh nhật"),
+        ("truck", $"Miễn phí giao hàng cho đơn từ {Fmt.Vnd(DeliveryService.FreeShippingFrom)}", "Giao nhanh trong 24 phút từ cửa hàng gần bạn"),
+    ];
+    (string Title, string Condition) VoucherText(Promotion p)
+    {
+        if (p.Type == PromotionType.MemberVoucher)
+            return ($"Giảm {Fmt.Vnd(tier.DrinkVoucher)} mỗi ly đồ uống", $"Hạng {tier.Label} · tối đa {MembershipService.MaxDrinkVouchersPerOrder} ly mỗi đơn");
+        var title = p.Type == PromotionType.Percent
+            ? $"Giảm {p.Value}%" + (p.MaxDiscount is int max && max > 0 ? $", tối đa {Fmt.Vnd(max)}" : "")
+            : $"Giảm {Fmt.Vnd(p.Value)}";
+        var categoryIds = PricingService.Split(p.CategoryIds);
+        var scope = categoryIds.Length > 0
+            ? "Áp dụng cho " + string.Join(", ", categoryIds.Select(id => Model.Categories.FirstOrDefault(x => x.Id == id)?.Name ?? id))
+            : p.MinOrderValue is int min && min > 0 ? $"Đơn từ {Fmt.Vnd(min)}" : "Mọi đơn hàng";
+        var tiers = PricingService.Tiers(p);
+        return (title, scope + (tiers.Length > 0 ? " · hạng " + string.Join(", ", tiers.Select(TierStyle.Label)) : ""));
+    }
+}
+<div class="stack">
+    @if (isBirthdayMonth)
+    {
+        <div class="bday">
+            <span class="bday-ic">@ShopIcons.Svg("cake", 20)</span>
+            <div class="min-w-0">
+                <p class="strong small">Chúc mừng tháng sinh nhật của bạn!</p>
+                <p class="xs bday-text">Trong tháng @birthdayMonth, thành viên hạng @tier.Label được giảm @birthdayPercent% đồ uống khi mua từ 3 ly.</p>
+            </div>
+        </div>
+    }
+
+    <div class="grid-2">
+        <section class="panel2">
+            <div class="panel2-head">
+                <h2 class="panel2-title">Quyền lợi hạng @tier.Label</h2>
+                <a class="link small" href="@ShopUrls.Membership">Tất cả hạng</a>
+            </div>
+            <div class="panel2-body">
+                <ul class="benefit-list">
+                    @foreach (var (icon, title, desc) in benefits)
+                    {
+                        <li>
+                            <span class="benefit-ic">@ShopIcons.Svg(icon, 16)</span>
+                            <div class="min-w-0">
+                                <p class="small strong-500">@title</p>
+                                <p class="xs muted">@desc</p>
+                            </div>
+                        </li>
+                    }
+                </ul>
+                @if (c.Birthday is null)
+                {
+                    <p class="note-muted">Bạn chưa cập nhật ngày sinh – thêm ở mục <a class="link" href="@ShopUrls.AccountTab("thong-tin")">Thông tin</a> để nhận ưu đãi tháng sinh nhật.</p>
+                }
+            </div>
+        </section>
+
+        <section class="panel2">
+            <div class="panel2-head">
+                <div>
+                    <h2 class="panel2-title">Voucher dùng được ngay</h2>
+                    <p class="panel2-desc">Cho đơn đặt online, có hiệu lực hôm nay</p>
+                </div>
+            </div>
+            <div class="panel2-body">
+                @if (Model.UsableVouchers.Count == 0)
+                {
+                    <p class="center small muted pad-y">Hiện chưa có voucher nào dành cho bạn. Quay lại sau nhé!</p>
+                }
+                else
+                {
+                    <ul class="ready-vouchers">
+                        @foreach (var p in Model.UsableVouchers)
+                        {
+                            var (title, condition) = VoucherText(p);
+                            <li>
+                                <span class="rv-ic">@ShopIcons.Svg("ticket-percent", 20)</span>
+                                <div class="min-w-0 flex-1">
+                                    <p class="small strong">@title</p>
+                                    <p class="xs muted">@condition · HSD @Fmt.Date(p.EndsAt)</p>
+                                </div>
+                                @if (!string.IsNullOrEmpty(p.Code))
+                                {
+                                    <button type="button" class="btn btn-outline btn-sm rv-code" data-copy="@p.Code" data-copy-desc="Dán mã ở bước đặt hàng để được giảm giá." aria-label="Sao chép mã @p.Code">
+                                        <span class="copy-ic">@ShopIcons.Svg("copy", 14)</span> @p.Code
+                                    </button>
+                                }
+                                else
+                                {
+                                    @Tones.Badge("fresh", "Tự động áp dụng")
+                                }
+                            </li>
+                        }
+                    </ul>
+                }
+            </div>
+        </section>
+    </div>
+
+    <section class="panel2">
+        <div class="panel2-head">
+            <h2 class="panel2-title">Đơn hàng gần đây</h2>
+            @if (recent.Count > 0)
+            {
+                <a class="btn btn-ghost btn-sm text-brand" href="@ShopUrls.AccountTab("don-hang")">Xem tất cả</a>
+            }
+        </div>
+        <div class="panel2-body flush">
+            @if (recent.Count > 0)
+            {
+                <partial name="_OrderList" model="recent" />
+            }
+            else
+            {
+                <div class="empty">
+                    <span class="empty-ic">@ShopIcons.Svg("package", 24)</span>
+                    <p class="small muted">Bạn chưa có đơn hàng nào.</p>
+                    <a class="btn btn-sm" href="/">Mua sắm ngay</a>
+                </div>
+            }
+        </div>
+    </section>
+</div>

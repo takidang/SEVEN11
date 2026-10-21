@@ -1,0 +1,65 @@
+@using SevenEleven.Core.Models
+@using SevenEleven.Core.Services
+@using SevenEleven.Web.Infrastructure
+@model (MemberTier? Current, int? Spend)
+@{
+    // Bốn hạng trong một bảng so sánh: mỗi cột một hạng, mỗi dòng một quyền lợi (tier-ladder.tsx).
+    var currentRank = Model.Current is MemberTier c ? Array.IndexOf(MembershipService.Order, c) : -1;
+    (string Label, Func<TierInfo, string> Value)[] rows =
+    [
+        ("Giữ hạng mỗi tháng", t => t.KeepPerMonth > 0 ? $"Chi tối thiểu {Fmt.Vnd(t.KeepPerMonth)}" : "Không cần duy trì"),
+        ("Giảm mỗi ly đồ uống", t => Fmt.Vnd(t.DrinkVoucher)),
+        ("Voucher mỗi tháng", t => $"{t.VouchersPerMonth} voucher"),
+        ("Tháng sinh nhật", t => $"Giảm {Math.Round(t.BirthdayDrinkDiscount * 100)}% đồ uống"),
+        ("Nước miễn phí", t => t.FreeDrink),
+    ];
+}
+<div class="ladder-table-wrap">
+    <table class="ladder-table">
+        <caption class="sr-only">So sánh quyền lợi bốn hạng thành viên</caption>
+        <thead>
+            <tr>
+                <th scope="col" class="lt-corner"><span>Quyền lợi</span></th>
+                @for (var i = 0; i < MembershipService.Order.Length; i++)
+                {
+                    var tier = MembershipService.Order[i];
+                    var info = MembershipService.Info(tier);
+                    var isCurrent = Model.Current == tier;
+                    var missing = Model.Spend is int spend ? Math.Max(0, info.MinSpend - spend) : 0;
+                    <th scope="col" class="lt-tier @(isCurrent ? "is-current" : null)" aria-current="@(isCurrent ? "true" : null)">
+                        <div class="@TierStyle.Face(tier) lt-face">
+                            <div class="lt-face-top">
+                                <span class="lt-name">@info.Label</span>
+                                @if (isCurrent)
+                                {
+                                    <span class="lt-you">Hạng của bạn</span>
+                                }
+                                else if (currentRank >= 0 && i < currentRank)
+                                {
+                                    @ShopIcons.Svg("circle-check", 16, "lt-done", label: "Đã đạt")
+                                }
+                                else if (currentRank >= 0 && missing > 0)
+                                {
+                                    <span class="lt-missing">Còn @Fmt.Compact(missing)</span>
+                                }
+                            </div>
+                            <p class="lt-min">@(info.MinSpend > 0 ? $"Tích luỹ từ {Fmt.Vnd(info.MinSpend)}" : "Ngay khi đăng ký")</p>
+                        </div>
+                    </th>
+                }
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var (label, value) in rows)
+            {
+                <tr>
+                    <th scope="row">@label</th>
+                    @foreach (var tier in MembershipService.Order)
+                    {
+                        <td class="@(Model.Current == tier ? "is-current" : null)">@value(MembershipService.Info(tier))</td>
+                    }
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>

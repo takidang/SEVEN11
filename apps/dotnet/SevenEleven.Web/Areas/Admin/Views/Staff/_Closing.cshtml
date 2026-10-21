@@ -1,0 +1,140 @@
+@using SevenEleven.Web.Areas.Admin.Controllers
+@model StaffPageModel
+@{
+    var store = Model.Store!;
+    var now = Model.Now;
+    var day = Model.Day;
+    var rows = Model.Closing;
+    var cashTotal = rows.Sum(r => r.Sales.Amount);
+    var cashOrders = rows.Sum(r => r.Sales.Orders);
+    var completed = rows.Count(r => r.Shift.Status == ShiftStatus.Completed);
+    var unfinished = rows.Count(r => r.Shift.Status is ShiftStatus.Scheduled or ShiftStatus.InProgress);
+    var closed = rows.Where(r => r.Difference is not null).ToList();
+    var diffTotal = closed.Sum(r => r.Difference!.Value);
+    var shortRows = closed.Where(r => r.Difference < 0).ToList();
+    var overRows = closed.Where(r => r.Difference > 0).ToList();
+    var running = rows.FirstOrDefault(r => r.Shift.Status == ShiftStatus.InProgress);
+    var lastClosed = rows.Where(r => r.Shift.Status == ShiftStatus.Completed).OrderByDescending(r => r.Shift.CheckOutAt).FirstOrDefault();
+    string DayLink(DateTime d) => $"/Admin/Staff?tab=chot-ca&ngay={d:yyyy-MM-dd}";
+}
+<div class="toolbar">
+    <a class="btn btn-sm" href="@DayLink(day.AddDays(-1))">← Ngày trước</a>
+    <form method="get" class="inline-form"><input type="hidden" name="tab" value="chot-ca" /><input class="input" type="date" name="ngay" value="@day.ToString("yyyy-MM-dd")" max="@now.ToString("yyyy-MM-dd")" onchange="this.form.submit()" aria-label="Ngày chốt ca" /></form>
+    @if (day < now.Date) { <a class="btn btn-sm" href="@DayLink(day.AddDays(1))">Ngày sau →</a> }
+    <a class="btn btn-sm" href="@DayLink(now.Date)">Hôm nay</a>
+    <b style="font-size:15px;margin-left:8px">@(day == now.Date ? $"Hôm nay, {TimeText.Weekday(day).ToLower()} {day:dd/MM/yyyy}" : $"{TimeText.Weekday(day)} {day:dd/MM/yyyy}")</b>
+</div>
+
+@if (Model.OtherDayRunning is { } other)
+{
+    <div class="flash flash-warn">@ShiftService.Label(other.Type) @TimeText.Weekday(other.Date).ToLower() @other.Date.ToString("dd/MM") của @other.Employee?.FullName vẫn đang làm (@ShiftService.Time(other.Type)). <a class="btn btn-sm" href="@DayLink(other.Date)">Xem ngày @other.Date.ToString("dd/MM")</a></div>
+}
+
+<div class="kpis">
+    <div class="kpi"><span class="kpi-label">Tiền mặt bán tại quầy</span><b class="kpi-value">@Money.Format(cashTotal)</b><span class="kpi-sub">@cashOrders đơn trả tiền mặt trong các ca</span></div>
+    <div class="kpi"><span class="kpi-label">Ca đã chốt</span><b class="kpi-value">@completed / @rows.Count</b><span class="kpi-sub">@(rows.Count == 0 ? "Không có ca nào trong ngày" : unfinished > 0 ? $"{unfinished} ca chưa kết thúc hoặc chưa chốt" : "Đã chốt xong các ca trong ngày")</span></div>
+    <div class="kpi"><span class="kpi-label">Chênh lệch két (cộng dồn)</span><b class="kpi-value @(diffTotal < 0 ? "neg" : null)">@(closed.Count == 0 ? "—" : Money.Signed(diffTotal))</b>
+        <span class="kpi-sub">@(closed.Count == 0 ? "Chưa có ca nào được chốt" : shortRows.Count + overRows.Count > 0 ? $"Gồm thiếu {Money.Format(-shortRows.Sum(r => r.Difference!.Value))} ở {shortRows.Count} ca · thừa {Money.Format(overRows.Sum(r => r.Difference!.Value))} ở {overRows.Count} ca" : "Các ca đã chốt đều khớp tiền")</span></div>
+    @if (running is not null)
+    {
+        <div class="kpi"><span class="kpi-label">Tiền két dự kiến lúc này</span><b class="kpi-value">@Money.Format(running.Expected ?? 0)</b><span class="kpi-sub">@ShiftService.Label(running.Shift.Type) đang làm · tính đến @now.ToString("HH:mm")</span></div>
+    }
+    else if (lastClosed is not null)
+    {
+        <div class="kpi"><span class="kpi-label">Tiền két khi chốt ca gần nhất</span><b class="kpi-value">@Money.Format(lastClosed.Shift.ClosingCash ?? 0)</b><span class="kpi-sub">Đếm lúc chốt @ShiftService.Label(lastClosed.Shift.Type).ToLower()</span></div>
+    }
+    else
+    {
+        <div class="kpi"><span class="kpi-label">Tiền trong két</span><b class="kpi-value">—</b><span class="kpi-sub">Chưa có ca nào vào ca trong ngày</span></div>
+    }
+</div>
+
+@if (Model.SelectedShift is { } sel)
+{
+    var s = sel.Shift;
+    <section class="panel" style="max-width:640px">
+        @if (Model.SelectedAction == "vao")
+        {
+            var late = (int)(now - sel.Start).TotalMinutes;
+            <div class="panel-head"><h2>Vào ca · @ShiftService.Label(s.Type) · @TimeText.WeekdayShort(s.Date) @s.Date.ToString("dd/MM")</h2><a class="btn btn-sm" href="@DayLink(day)">Đóng</a></div>
+            @if (late > 5) { <p class="flash flash-warn">Vào ca trễ @late phút so với giờ bắt đầu @sel.Start.ToString("HH:mm").</p> }
+            <form method="post" asp-action="CheckIn" class="form">
+                <input type="hidden" name="id" value="@s.Id" />
+                <label class="field"><span>Tiền đầu ca trong két <small class="help">Đếm tiền lẻ nhận bàn giao. Gợi ý @Money.Format(Model.SuggestedOpening.Amount) (@(Model.SuggestedOpening.FromPrevious ? "tiền cuối ca trước" : "quỹ tiền lẻ chuẩn"))</small></span>
+                    <span class="suffix"><input name="openingCash" inputmode="numeric" value="@Model.SuggestedOpening.Amount" autofocus /><span class="unit">₫</span></span></label>
+                <div class="form-actions"><a class="btn" href="@DayLink(day)">Huỷ</a><button class="btn btn-primary" type="submit">Xác nhận vào ca</button></div>
+            </form>
+        }
+        else
+        {
+            var left = sel.End - now;
+            <div class="panel-head"><h2>Chốt ca · @ShiftService.Label(s.Type) · @TimeText.WeekdayShort(s.Date) @s.Date.ToString("dd/MM") · @s.Employee?.FullName</h2><a class="btn btn-sm" href="@DayLink(day)">Đóng</a></div>
+            @if (left > TimeSpan.Zero)
+            {
+                <p class="flash flash-warn">Ca kết thúc lúc @sel.End.ToString("HH:mm") (@(left.TotalHours >= 1 ? $"còn {(int)left.TotalHours} giờ {left.Minutes} phút" : $"còn {left.Minutes} phút")). Chốt sớm sẽ ghi nhận giờ ra ca là bây giờ.</p>
+            }
+            <div class="sum-row"><span>Tiền đầu ca</span><span>@Money.Format(s.OpeningCash ?? 0)</span></div>
+            <div class="sum-row"><span>Tiền mặt bán được (@sel.Sales.Orders đơn)</span><span>@Money.Format(sel.Sales.Amount)</span></div>
+            <div class="sum-total"><span>Tiền dự kiến trong két</span><span>@Money.Format(sel.Expected ?? 0)</span></div>
+            <form method="post" asp-action="CheckOut" class="form" data-cashup data-expected="@(sel.Expected ?? 0)" style="margin-top:12px">
+                <input type="hidden" name="id" value="@s.Id" />
+                <label class="field"><span>Tiền mặt thực tế đếm được</span><span class="suffix"><input name="closingCash" inputmode="numeric" data-counted autofocus /><span class="unit">₫</span></span></label>
+                <details class="inline-dialog"><summary>Đếm theo mệnh giá</summary>
+                    <div class="mini">
+                        @foreach (var note in new[] { 500_000, 200_000, 100_000, 50_000, 20_000, 10_000, 5_000, 2_000, 1_000 })
+                        {
+                            <label class="field"><span>@Money.FormatNumber(note) ₫</span><span class="suffix"><input type="number" min="0" data-note="@note" /><span class="unit">tờ</span></span></label>
+                        }
+                    </div>
+                </details>
+                <p class="cell-sub" data-diff>Nhập số tiền để đối chiếu</p>
+                <label class="field"><span data-note-label>Ghi chú</span><textarea name="note" maxlength="200"></textarea></label>
+                <div class="form-actions"><a class="btn" href="@DayLink(day)">Huỷ</a><button class="btn btn-primary" type="submit">Chốt ca</button></div>
+            </form>
+        }
+    </section>
+}
+
+<div class="panel flush">
+    @if (rows.Count == 0)
+    {
+        <p class="empty"><b>Không có ca nào trong ngày</b><br />Xếp người vào ca ở tab “Lịch ca” để theo dõi vào ca và chốt tiền két.</p>
+    }
+    else
+    {
+        <div class="table-wrap">
+            <table class="table">
+                <thead><tr><th>Ca</th><th>Nhân viên</th><th>Vào → ra</th><th class="num">Tiền đầu ca</th><th class="num">Tiền mặt bán được</th><th class="num">Tiền dự kiến</th><th class="num">Tiền thực tế</th><th>Chênh lệch</th><th>Trạng thái</th><th></th></tr></thead>
+                <tbody>
+                    @foreach (var r in rows)
+                    {
+                        var s = r.Shift;
+                        var started = now >= r.Start;
+                        <tr>
+                            <td>@ShiftService.Label(s.Type)<span class="cell-sub">@ShiftService.Time(s.Type)</span></td>
+                            <td>@s.Employee?.FullName</td>
+                            <td>@(s.CheckInAt?.ToString("HH:mm") ?? "—") → @(s.CheckOutAt?.ToString("HH:mm") ?? "—")</td>
+                            <td class="num">@(s.OpeningCash is int o ? Money.Format(o) : "—")</td>
+                            <td class="num">@if (s.Status == ShiftStatus.Absent || s.CheckInAt is null) { <text>—</text> } else { @Money.Format(r.Sales.Amount)<span class="cell-sub">@r.Sales.Orders đơn tiền mặt</span> }</td>
+                            <td class="num">@(r.Expected is long e ? Money.Format(e) : "—")</td>
+                            <td class="num">@(s.ClosingCash is int c ? Money.Format(c) : "—")</td>
+                            <td>@if (r.Difference is long d) { var (label, tone) = ShiftService.DifferenceBadge(d); <span class="badge @tone">@label</span> } @if (s.Note is string note) { <span class="cell-sub">@note</span> }</td>
+                            <td><span class="badge @(s.Status == ShiftStatus.Scheduled && started ? "orange" : ShiftService.StatusTone(s.Status))">@(s.Status == ShiftStatus.Scheduled && started ? "Chưa vào ca" : ShiftService.StatusLabel(s.Status))</span></td>
+                            <td class="num">
+                                @if (s.Status == ShiftStatus.InProgress)
+                                {
+                                    <a class="btn btn-sm btn-primary" href="@DayLink(day)&ca=@s.Id&lam=chot">Chốt ca</a>
+                                }
+                                else if (s.Status == ShiftStatus.Scheduled)
+                                {
+                                    if (now >= r.Start.AddMinutes(-ShiftService.EarlyCheckInMinutes) && now < r.End) { <a class="btn btn-sm" href="@DayLink(day)&ca=@s.Id&lam=vao">Vào ca</a> }
+                                    if (started) { <form method="post" asp-action="Absent" class="inline"><input type="hidden" name="id" value="@s.Id" /><input type="hidden" name="back" value="chot-ca" /><button class="btn btn-sm" type="submit">Vắng</button></form> }
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>

@@ -1,0 +1,52 @@
+@using SevenEleven.Web.Areas.Admin.Controllers
+@model StaffPageModel
+@{
+    var staff = ViewBag.Staff as StaffUser;
+    var store = Model.Store;
+}
+<div class="page-head">
+    <div>
+        <h1>Nhân viên & ca làm</h1>
+        <p>@(store is null ? "Nhân sự toàn chuỗi. Chọn một cửa hàng để xếp lịch ca và chốt tiền két." : $"Cửa hàng {store.Code} – {store.Name}: nhân sự, lịch ca theo tuần và chốt tiền két cuối ca.")</p>
+    </div>
+    @if (Model.Tab == "nhan-vien")
+    {
+        <a class="btn btn-primary" asp-action="Employee">@Icons.Svg("plus", 16) Thêm nhân viên</a>
+    }
+</div>
+<nav class="tabs-line" aria-label="Mục nhân viên">
+    <a asp-action="Index" asp-route-tab="nhan-vien" class="@(Model.Tab == "nhan-vien" ? "active" : null)">Nhân viên</a>
+    <a asp-action="Index" asp-route-tab="lich-ca" class="@(Model.Tab == "lich-ca" ? "active" : null)">Lịch ca</a>
+    <a asp-action="Index" asp-route-tab="chot-ca" class="@(Model.Tab == "chot-ca" ? "active" : null)">Chốt ca</a>
+</nav>
+
+@if (Model.Tab == "nhan-vien")
+{
+    <partial name="_Employees" model="Model" />
+}
+else if (store is null)
+{
+    <section class="panel" style="max-width:640px">
+        <h2 style="font-size:16px">Chọn một cửa hàng để @(Model.Tab == "lich-ca" ? "xem lịch ca" : "chốt ca")</h2>
+        <p class="muted">Lịch ca và chốt ca được quản lý theo từng cửa hàng. Chọn cửa hàng ở ô “Toàn chuỗi” trên thanh đầu trang, hoặc chọn nhanh tại đây.</p>
+        <form method="post" asp-action="PickStore" class="inline-form">
+            <input type="hidden" name="tab" value="@Model.Tab" />
+            <select class="input" name="storeId" required aria-label="Chọn cửa hàng">
+                <option value="">Chọn cửa hàng</option>
+                @foreach (var s in Model.Stores.Where(s => s.Status != StoreStatus.Closed))
+                {
+                    <option value="@s.Id">@s.Code – @s.Name</option>
+                }
+            </select>
+            <button class="btn btn-primary" type="submit">Xem</button>
+        </form>
+    </section>
+}
+else if (Model.Tab == "lich-ca")
+{
+    <partial name="_Schedule" model="Model" />
+}
+else
+{
+    <partial name="_Closing" model="Model" />
+}

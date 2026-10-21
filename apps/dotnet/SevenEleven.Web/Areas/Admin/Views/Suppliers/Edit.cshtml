@@ -1,0 +1,47 @@
+@using SevenEleven.Web.Areas.Admin.Controllers
+@model SupplierFormModel
+@{
+    var i = Model.Input;
+    var e = Model.Errors;
+    var isNew = Model.Existing is null;
+}
+<div class="page-head">
+    <div>
+        <h1>@(isNew ? "Thêm nhà cung cấp" : $"Sửa {Model.Existing!.Code}")</h1>
+        <p>@(isNew ? "Nhà cung cấp mới có thể chọn ngay khi tạo phiếu nhập." : Model.Existing!.Name)</p>
+    </div>
+    <a class="btn" asp-action="Index">← Danh sách</a>
+</div>
+<form method="post" asp-action="Save" class="panel form" style="max-width:820px">
+    <input type="hidden" name="Id" value="@i.Id" />
+    <div class="form-section">
+        <h3>Thông tin doanh nghiệp</h3>
+        <div class="form-grid">
+            <label class="field full"><span>Tên nhà cung cấp</span><input name="Name" value="@i.Name" maxlength="120" placeholder="VD: Công ty TNHH Thực phẩm An Bình" class="@Forms.Invalid(e, "Name")" />@Forms.Error(e, "Name")</label>
+            <label class="field"><span>Mã số thuế</span><input name="TaxCode" value="@i.TaxCode" maxlength="10" inputmode="numeric" class="@Forms.Invalid(e, "TaxCode")" />@Forms.Error(e, "TaxCode")</label>
+            <label class="field"><span>Địa chỉ</span><input name="Address" value="@i.Address" maxlength="200" class="@Forms.Invalid(e, "Address")" />@Forms.Error(e, "Address")</label>
+        </div>
+    </div>
+    <div class="form-section">
+        <h3>Liên hệ đặt hàng</h3>
+        <div class="form-grid">
+            <label class="field"><span>Người liên hệ</span><input name="ContactName" value="@i.ContactName" maxlength="60" class="@Forms.Invalid(e, "ContactName")" />@Forms.Error(e, "ContactName")</label>
+            <label class="field"><span>Số điện thoại</span><input name="Phone" value="@i.Phone" placeholder="028 3900 0101" class="@Forms.Invalid(e, "Phone")" />@Forms.Error(e, "Phone")</label>
+            <label class="field full"><span>Email</span><input name="Email" type="email" value="@i.Email" placeholder="dathang@congty.vn" class="@Forms.Invalid(e, "Email")" />@Forms.Error(e, "Email")</label>
+        </div>
+        <div class="field"><span>Danh mục cung cấp <small class="help">Phiếu nhập với nhà cung cấp này chỉ chọn được sản phẩm thuộc các danh mục đã đánh dấu.</small></span>
+            <div class="checks">
+                @foreach (var c in Model.Categories)
+                {
+                    <label><input type="checkbox" name="CategoryIds" value="@c.Id" checked="@i.CategoryIds.Contains(c.Id)" /> @c.Name</label>
+                }
+            </div>
+            @Forms.Error(e, "CategoryIds")
+        </div>
+        <label class="switch-row"><input type="checkbox" name="IsActive" value="true" checked="@i.IsActive" /><span><b>Đang hợp tác</b><small>Tắt để ngừng đặt hàng: nhà cung cấp không còn xuất hiện khi tạo phiếu nhập mới.</small></span></label>
+    </div>
+    <div class="form-actions">
+        <a class="btn" asp-action="@(isNew ? "Index" : "Detail")" asp-route-id="@i.Id">Huỷ</a>
+        <button class="btn btn-primary" type="submit">@(isNew ? "Thêm nhà cung cấp" : "Lưu thay đổi")</button>
+    </div>
+</form>

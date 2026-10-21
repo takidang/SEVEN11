@@ -1,0 +1,25 @@
+@model ColumnChart
+<figure class="chart" role="img" aria-label="@Model.Label">
+    <div class="chart-plot">
+        <div class="chart-grid" aria-hidden="true">
+            @foreach (var (value, text) in Model.Ticks)
+            {
+                <div class="grid-line" style="bottom:@Model.Height(value)%"><span>@text</span></div>
+            }
+        </div>
+        <div class="chart-bars">
+            @foreach (var bar in Model.Bars)
+            {
+                <div class="chart-col @(bar.Highlight ? "hl" : null)" tabindex="0" data-tip="@bar.Tip" aria-label="@bar.Tip">
+                    <div class="chart-bar" style="height:@Model.Height(bar.Value)%"></div>
+                </div>
+            }
+        </div>
+    </div>
+    <div class="chart-x" aria-hidden="true">
+        @for (var i = 0; i < Model.Bars.Count; i++)
+        {
+            <span>@(i % Model.LabelEvery == 0 || i == Model.Bars.Count - 1 ? Model.Bars[i].Tick : "")</span>
+        }
+    </div>
+</figure>

@@ -1,0 +1,9 @@
+@using SevenEleven.Web.Infrastructure
+@using SevenEleven.Web.Models.Shop
+<ul class="popular-searches" aria-label="Tìm kiếm phổ biến">
+    <li class="popular-title">@ShopIcons.Svg("trending-up", 16) Tìm kiếm phổ biến</li>
+    @foreach (var term in SearchModel.Popular)
+    {
+        <li><a class="popular-chip" href="@ShopUrls.Search?q=@Uri.EscapeDataString(term)">@ShopIcons.Svg("search", 14) @term</a></li>
+    }
+</ul>

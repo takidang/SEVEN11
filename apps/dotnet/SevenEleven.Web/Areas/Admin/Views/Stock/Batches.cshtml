@@ -1,0 +1,73 @@
+@using SevenEleven.Web.Areas.Admin.Controllers
+@model BatchesModel
+@{
+    var here = Context.Request.Path + Context.Request.QueryString;
+}
+<div class="page-head">
+    <div>
+        <h1>Lô hàng & hạn dùng</h1>
+        <p>Hàng tươi, sữa, bánh… bán theo lô hết hạn trước; lô quá hạn phải xuất huỷ khỏi kệ.</p>
+    </div>
+    <partial name="_Tabs" model="@("batches")" />
+</div>
+
+<div class="panel flush">
+    <div style="padding:16px">
+        <nav class="seg" aria-label="Lọc lô">
+            <a asp-action="Batches" class="@(Model.State is null ? "active" : null)">Tất cả<span class="n">@Model.Counts["all"]</span></a>
+            <a asp-action="Batches" asp-route-state="expiring" class="@(Model.State == "expiring" ? "active" : null)">Hết hạn trong 24 giờ<span class="n">@(Model.Counts["expiring"] + Model.Counts["expired"])</span></a>
+            <a asp-action="Batches" asp-route-state="expired" class="@(Model.State == "expired" ? "active" : null)">Đã quá hạn<span class="n">@Model.Counts["expired"]</span></a>
+        </nav>
+    </div>
+    @if (Model.Batches.Count == 0)
+    {
+        <p class="empty">Không có lô nào trong mục này.</p>
+    }
+    else
+    {
+        <div class="table-wrap">
+            <table class="table">
+                <thead><tr><th>Mặt hàng</th>@if (Model.IsChain) { <th>Cửa hàng</th> }<th>Số lô</th><th class="num">Số lượng</th><th>Nhập lúc</th><th>Hạn dùng</th><th></th></tr></thead>
+                <tbody>
+                    @foreach (var b in Model.Batches)
+                    {
+                        var state = InventoryService.StateOf(b, Model.Now);
+                        var days = b.ExpiresAt is DateTime exp ? (int)Math.Ceiling((exp - Model.Now).TotalDays) : 0;
+                        <tr>
+                            <td>
+                                <span class="product-cell">
+                                    <img class="thumb" src="@b.Product?.Image" alt="" loading="lazy" />
+                                    <span>@b.Product?.Name<span class="cell-sub">@b.Product?.Sku</span></span>
+                                </span>
+                            </td>
+                            @if (Model.IsChain) { <td>@b.Store?.Code</td> }
+                            <td class="tabular">@b.LotCode</td>
+                            <td class="num">@b.Quantity</td>
+                            <td>@b.ReceivedAt.ToString("dd/MM HH:mm")</td>
+                            <td>
+                                @b.ExpiresAt?.ToString("dd/MM HH:mm")
+                                @if (state == BatchState.Expired) { <span class="badge danger">Đã quá hạn</span> }
+                                else if (state == BatchState.ExpiringToday) { <span class="badge warning">Hết hạn hôm nay</span> }
+                                else { <span class="badge neutral">Còn @days ngày</span> }
+                            </td>
+                            <td class="num">
+                                @if (state != BatchState.Fresh)
+                                {
+                                    <form method="post" asp-action="Discard" class="inline" data-confirm="Xuất huỷ lô @b.LotCode (@b.Quantity × @b.Product?.Name)? Tồn kho sẽ trừ đúng số này.">
+                                        <input type="hidden" name="id" value="@b.Id" />
+                                        <input type="hidden" name="returnUrl" value="@here" />
+                                        <button class="btn btn-sm btn-danger" type="submit">Xuất huỷ</button>
+                                    </form>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        @if (Model.Batches.Count == 200)
+        {
+            <p class="pager">Hiện 200 lô hết hạn sớm nhất.</p>
+        }
+    }
+</div>

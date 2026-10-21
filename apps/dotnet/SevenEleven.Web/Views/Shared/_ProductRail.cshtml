@@ -1,0 +1,14 @@
+@using SevenEleven.Core.Models
+@using SevenEleven.Web.Infrastructure
+@model IEnumerable<Product>
+@* Dải thẻ sản phẩm trượt ngang, có nút mũi tên trên máy tính. *@
+<div class="rail" data-rail>
+    <div class="rail-track" data-rail-track>
+        @foreach (var p in Model)
+        {
+            <partial name="_ProductCard" model="p" />
+        }
+    </div>
+    <button type="button" class="rail-btn rail-prev" data-rail-prev aria-label="Xem trước">@ShopIcons.Svg("chevron-left", 20)</button>
+    <button type="button" class="rail-btn rail-next" data-rail-next aria-label="Xem thêm">@ShopIcons.Svg("chevron-right", 20)</button>
+</div>

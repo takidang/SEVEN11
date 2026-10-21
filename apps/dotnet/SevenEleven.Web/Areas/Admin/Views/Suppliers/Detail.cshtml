@@ -1,0 +1,66 @@
+@using SevenEleven.Web.Areas.Admin.Controllers
+@model SupplierDetailModel
+@{
+    var s = Model.Supplier;
+    bool canManage = ViewBag.CanManage;
+    var cats = PricingService.Split(s.CategoryIds);
+    var processing = Model.Orders.Count(o => o.Status is PurchaseOrderStatus.Draft or PurchaseOrderStatus.Ordered);
+    var received = Model.Orders.Where(o => o.Status == PurchaseOrderStatus.Received).Sum(o => (long)o.Total);
+}
+<div class="page-head">
+    <div>
+        <h1>@s.Name <span class="badge @(s.Status == SupplierStatus.Active ? "fresh" : "neutral")" style="vertical-align:middle">@(s.Status == SupplierStatus.Active ? "Đang hợp tác" : "Ngừng hợp tác")</span></h1>
+        <p>@s.Code · Mã số thuế @s.TaxCode</p>
+    </div>
+    <div class="page-actions">
+        <a class="btn" asp-action="Index">← Danh sách</a>
+        @if (canManage) { <a class="btn btn-primary" asp-action="Edit" asp-route-id="@s.Id">Chỉnh sửa</a> }
+    </div>
+</div>
+<div class="detail-grid">
+    <section class="panel flush">
+        <div class="panel-head pad"><div><h2>Phiếu nhập gần đây</h2>@if (Model.Orders.Count > 6) { <p>6/@Model.Orders.Count phiếu</p> }</div></div>
+        @if (Model.Orders.Count == 0)
+        {
+            <p class="empty">Chưa có phiếu nhập nào với nhà cung cấp này@(Model.IsChain ? "" : " tại cửa hàng đang xem").</p>
+        }
+        else
+        {
+            <div class="table-wrap">
+                <table class="table">
+                    <tbody>
+                        @foreach (var o in Model.Orders.Take(6))
+                        {
+                            <tr>
+                                <td><a class="code-link" asp-controller="Purchasing" asp-action="Detail" asp-route-id="@o.Id">@o.Code</a> <span class="badge @Labels.Tone(o.Status)">@Labels.Purchase(o.Status)</span>
+                                    <span class="cell-sub">@o.CreatedAt.ToString("dd/MM/yyyy") · @o.Items.Count mặt hàng@(Model.IsChain ? $" · Cửa hàng {o.Store?.Code}" : "")</span></td>
+                                <td class="num">@Money.Format(o.Total)</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </section>
+    <div style="display:grid;gap:16px">
+        <section class="panel">
+            <dl class="kv">
+                <dt>Người liên hệ</dt><dd>@s.ContactName</dd>
+                <dt>Điện thoại</dt><dd><a href="tel:@s.Phone" class="link">@Phone.Format(s.Phone)</a></dd>
+                <dt>Email</dt><dd><a href="mailto:@s.Email" class="link">@s.Email</a></dd>
+                <dt>Địa chỉ</dt><dd>@s.Address</dd>
+            </dl>
+        </section>
+        <section class="panel">
+            <h2 style="font-size:15px;margin-bottom:8px">Danh mục cung cấp (@cats.Length)</h2>
+            <div class="chips">@foreach (var c in cats) { <span class="chip-soft">@(Model.Categories.FirstOrDefault(x => x.Id == c)?.Name ?? c)</span> }</div>
+        </section>
+        <section class="panel">
+            <div class="mini">
+                <div><small>Phiếu nhập</small><b>@Model.Orders.Count</b></div>
+                <div><small>Đang xử lý</small><b>@processing</b></div>
+                <div><small>Đã nhập kho</small><b>@Money.FormatCompact(received) ₫</b></div>
+            </div>
+        </section>
+    </div>
+</div>

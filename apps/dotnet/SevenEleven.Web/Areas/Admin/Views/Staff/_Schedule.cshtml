@@ -1,0 +1,164 @@
+@using SevenEleven.Web.Areas.Admin.Controllers
+@model StaffPageModel
+@{
+    var store = Model.Store!;
+    var now = Model.Now;
+    var days = Enumerable.Range(0, 7).Select(i => Model.WeekStart.AddDays(i)).ToList();
+    Shift? ShiftAt(DateTime date, ShiftType type)
+    {
+        var id = ShiftService.SlotId(store.Code, date, type);
+        return Model.WeekShifts.FirstOrDefault(s => s.Id == id) ?? Model.WeekShifts.FirstOrDefault(s => s.Date == date && s.Type == type);
+    }
+    var slots = days.SelectMany(d => ShiftService.Types.Where(t => ShiftService.Runs(store, t)).Select(t => (Date: d, Type: t))).ToList();
+    var open = slots.Count(s => ShiftAt(s.Date, s.Type) is null && ShiftService.Window(s.Date, s.Type).End > now);
+    var filled = slots.Count(s => ShiftAt(s.Date, s.Type) is not null);
+    var weekLink = (int offset) => $"/Admin/Staff?tab=lich-ca&week={Model.WeekStart.AddDays(offset * 7):yyyy-MM-dd}";
+    var sel = Model.SelectedSlot;
+    var people = Model.Roster.Concat(Model.WeekShifts.Select(s => s.Employee!).Where(e => e is not null)).DistinctBy(e => e.Id).ToList();
+    string ShortName(string? name) { var parts = (name ?? "Không rõ").Split(' ', StringSplitOptions.RemoveEmptyEntries); return string.Join(' ', parts.TakeLast(2)); }
+}
+<div class="toolbar">
+    <a class="btn btn-sm" href="@weekLink(-1)">← Tuần trước</a>
+    <a class="btn btn-sm" href="/Admin/Staff?tab=lich-ca">Tuần này</a>
+    <a class="btn btn-sm" href="@weekLink(1)">Tuần sau →</a>
+    <b style="font-size:15px;margin-left:8px">Tuần @Model.WeekStart.ToString("dd/MM") – @Model.WeekStart.AddDays(6).ToString("dd/MM/yyyy")</b>
+    <span class="grow"></span>
+    <span class="badge @(open > 0 ? "orange" : "fresh")">@(open > 0 ? $"Còn {open} ca chưa có người" : "Đã đủ người cho các ca còn lại")</span>
+</div>
+
+@if (sel is { } slot)
+{
+    var shift = ShiftAt(slot.Date, slot.Type);
+    var (start, end) = ShiftService.Window(slot.Date, slot.Type);
+    var editable = (shift is null || shift.Status == ShiftStatus.Scheduled) && now < end;
+    var weekCount = (string id) => Model.WeekShifts.Count(s => s.EmployeeId == id);
+    <section class="panel" style="max-width:640px">
+        <div class="panel-head"><div>
+            <h2>@(shift is null ? "Xếp ca" : editable ? "Đổi người" : "Ca làm") · @ShiftService.Label(slot.Type) · @TimeText.Weekday(slot.Date) @slot.Date.ToString("dd/MM")</h2>
+            <p>@ShiftService.Time(slot.Type) · Cửa hàng @store.Code – @store.Name</p>
+        </div><a class="btn btn-sm" href="@weekLink(0)">Đóng</a></div>
+        @if (editable)
+        {
+            if (Model.Roster.Count == 0)
+            {
+                <p class="flash flash-warn">Cửa hàng chưa có nhân viên đang làm việc để xếp ca.</p>
+            }
+            else
+            {
+                if (shift is not null && now >= start)
+                {
+                    <p class="flash flash-warn">Ca đã bắt đầu lúc @start.ToString("HH:mm") nhưng @shift.Employee?.FullName chưa vào ca.</p>
+                }
+                <form method="post" asp-action="Assign" class="form">
+                    <input type="hidden" name="date" value="@slot.Date.ToString("yyyy-MM-dd")" />
+                    <input type="hidden" name="type" value="@slot.Type" />
+                    <div class="list-plain">
+                        @foreach (var e in Model.Roster)
+                        {
+                            var sameDay = Model.WeekShifts.FirstOrDefault(s => s.EmployeeId == e.Id && s.Date == slot.Date && s.Type != slot.Type);
+                            <label class="check" style="padding:6px 0"><input type="radio" name="employeeId" value="@e.Id" checked="@(shift?.EmployeeId == e.Id)" required />
+                                <span><b style="font-weight:500">@e.FullName</b> <span class="cell-sub" style="display:inline">@Labels.Role(e.Role) · @weekCount(e.Id) ca tuần này@(sameDay is not null ? $" · đã có {ShiftService.Label(sameDay.Type).ToLower()} cùng ngày" : "")</span></span></label>
+                        }
+                    </div>
+                    <div class="form-actions">
+                        <button class="btn btn-primary" type="submit">@(shift is null ? "Xếp ca" : "Lưu")</button>
+                    </div>
+                </form>
+                if (shift is not null)
+                {
+                    <div class="toolbar" style="justify-content:flex-end;margin-top:8px">
+                        @if (now >= start)
+                        {
+                            <form method="post" asp-action="Absent" class="inline"><input type="hidden" name="id" value="@shift.Id" /><button class="btn btn-sm" type="submit">Vắng</button></form>
+                        }
+                        <form method="post" asp-action="DeleteShift" class="inline" data-confirm="Xoá ca này? @shift.Employee?.FullName sẽ không còn trong @ShiftService.Label(slot.Type).ToLower() @slot.Date.ToString("dd/MM"). Ô lịch sẽ trống và cần xếp người khác.">
+                            <input type="hidden" name="id" value="@shift.Id" /><button class="btn btn-sm btn-danger" type="submit">Xoá ca</button>
+                        </form>
+                    </div>
+                }
+            }
+        }
+        else if (shift is null)
+        {
+            <p class="muted">Ca này đã qua và không có ai được xếp.</p>
+        }
+        else
+        {
+            <dl class="kv">
+                <dt>Nhân viên</dt><dd>@shift.Employee?.FullName</dd>
+                <dt>Trạng thái</dt><dd><span class="badge @ShiftService.StatusTone(shift.Status)">@ShiftService.StatusLabel(shift.Status)</span></dd>
+                <dt>Vào ca / ra ca</dt><dd>@(shift.CheckInAt?.ToString("HH:mm") ?? "—") → @(shift.CheckOutAt?.ToString("HH:mm") ?? "—")</dd>
+                <dt>Tiền đầu ca</dt><dd>@(shift.OpeningCash is int o ? Money.Format(o) : "—")</dd>
+                <dt>Tiền cuối ca</dt><dd>@(shift.ClosingCash is int c ? Money.Format(c) : "—")</dd>
+                <dt>Ghi chú</dt><dd>@(shift.Note ?? "—")</dd>
+            </dl>
+            @if (shift.Status == ShiftStatus.Scheduled && now >= end)
+            {
+                <p class="flash flash-warn">Ca đã kết thúc nhưng nhân viên chưa chấm công vào ca.</p>
+                <form method="post" asp-action="Absent" class="inline"><input type="hidden" name="id" value="@shift.Id" /><button class="btn btn-sm" type="submit">Đánh dấu vắng</button></form>
+            }
+            @if (shift.Status != ShiftStatus.Absent)
+            {
+                <a class="btn btn-sm" href="/Admin/Staff?tab=chot-ca&ngay=@slot.Date.ToString("yyyy-MM-dd")">Xem chốt ca</a>
+            }
+        }
+    </section>
+}
+
+<div class="panel" style="overflow-x:auto">
+    <div class="week-grid">
+        <div class="head">Ca làm</div>
+        @foreach (var d in days)
+        {
+            <div class="head @(d == now.Date ? "today" : null)">@(d == now.Date ? "Hôm nay" : TimeText.WeekdayShort(d))<br />@d.ToString("dd/MM")</div>
+        }
+        @foreach (var type in ShiftService.Types)
+        {
+            <div class="slot-label">@ShiftService.Label(type)<small>@ShiftService.Time(type)</small></div>
+            @foreach (var d in days)
+            {
+                var shift = ShiftAt(d, type);
+                var (start, end) = ShiftService.Window(d, type);
+                var link = $"/Admin/Staff?tab=lich-ca&week={Model.WeekStart:yyyy-MM-dd}&slot={StaffController.SlotKey(d, type)}";
+                if (!ShiftService.Runs(store, type))
+                {
+                    <div class="slot off">Không mở ca đêm</div>
+                }
+                else if (shift is null && now >= end)
+                {
+                    <div class="slot empty">Không có ca</div>
+                }
+                else if (shift is null)
+                {
+                    var running = now >= start;
+                    var soon = !running && start <= now.AddDays(3);
+                    <a class="slot empty @(soon || running ? "soon" : null)" href="@link"><b>Xếp người</b><span>@(running ? "Ca đang trống" : soon ? "Sắp đến ca" : "Chưa có người")</span></a>
+                }
+                else
+                {
+                    var label = shift.Status == ShiftStatus.Scheduled && now >= start ? (now < end ? "Chưa vào ca" : "Chưa chấm công") : ShiftService.StatusLabel(shift.Status);
+                    var tone = shift.Status == ShiftStatus.Scheduled && now >= start ? "orange" : ShiftService.StatusTone(shift.Status);
+                    <a class="slot" href="@link"><b>@ShortName(shift.Employee?.FullName)</b><span class="badge @tone">@label</span></a>
+                }
+            }
+        }
+    </div>
+</div>
+
+<section class="panel">
+    <div class="panel-head"><div><h2>Phân bổ ca trong tuần</h2><p>@filled / @slots.Count ca đã có người · mỗi ca 8 giờ</p></div></div>
+    @if (people.Count == 0)
+    {
+        <p class="muted" style="margin:0">Cửa hàng chưa có nhân viên đang làm việc.</p>
+    }
+    else
+    {
+        <ul class="list-plain">
+            @foreach (var e in people)
+            {
+                var count = Model.WeekShifts.Count(s => s.EmployeeId == e.Id);
+                <li style="display:flex;justify-content:space-between"><span>@e.FullName <span class="cell-sub" style="display:inline">· @(e.Status == EmployeeStatus.Active ? Labels.Role(e.Role) : "Nghỉ phép")</span></span><b>@count ca · @(count * ShiftService.HoursPerShift) giờ</b></li>
+            }
+        </ul>
+    }
+</section>

@@ -1,0 +1,206 @@
+@using SevenEleven.Web.Areas.Admin.Controllers
+@model CustomerDetailModel
+@{
+    var viewer = ViewBag.Staff as StaffUser;
+    var d = Model.Detail;
+    var c = d.Customer;
+    var tier = MembershipService.Info(c.Tier);
+    var k = d.Keep;
+    var reviewDay = MembershipService.ReviewDay(k.Month).ToString("dd/MM/yyyy");
+    bool canManage = ViewBag.CanManage;
+    var e = Model.Errors;
+    var editing = e is not null;
+    var posted = Model.Posted;
+    var avg = c.OrderCount > 0 ? c.TotalSpent / (double)c.OrderCount : 0;
+    var birthdayThisMonth = c.Birthday?.Month == Model.Now.Month;
+    string VoucherState(Promotion v)
+    {
+        if (v.UsageLimit is int limit && v.UsageCount >= limit) return "Đã dùng";
+        if (v.Status == PromotionStatus.Paused) return "Tạm dừng";
+        return PricingService.EffectiveStatus(v, Model.Now) == PromotionStatus.Ended ? "Hết hạn" : "Chưa dùng";
+    }
+}
+<div class="page-head">
+    <div>
+        <h1>@c.FullName <span class="tier-chip @c.Tier" style="vertical-align:middle">@tier.Label</span></h1>
+        <p>@Phone.Format(c.Phone)@(c.Email is null ? "" : $" · {c.Email}") · Thành viên từ @c.JoinedAt.ToString("dd/MM/yyyy")</p>
+    </div>
+    <a class="btn" asp-action="Index">← Danh sách khách hàng</a>
+</div>
+
+<div class="detail-grid">
+    <div style="display:grid;gap:16px">
+        <section class="panel" style="display:grid;gap:12px">
+            <div class="panel-head" style="margin:0"><div><p style="margin:0">Hạng thành viên</p><h2>Thành viên @tier.Label</h2><p>Từ ngày @c.TierSince.ToString("dd/MM/yyyy")</p></div><span class="tier-chip @c.Tier">@tier.Label</span></div>
+            <div>
+                <div class="budget-row"><span>Chi tiêu tích luỹ <b>@Money.Format(c.TierSpend)</b></span>@if (d.Progress.Next is { } next) { <span>Hạng tiếp theo <span class="tier-chip @next.Id">@next.Label</span></span> }</div>
+                <div class="meter"><div style="width:@d.Progress.Percent%"></div></div>
+                <small class="muted">@(d.Progress.Next is { } n ? $"Còn {Money.Format(d.Progress.Missing)} để lên hạng {n.Label} (mốc {Money.Format(n.MinSpend)})." : "Đã ở hạng cao nhất của chương trình.")</small>
+            </div>
+            <div>
+                <div class="budget-row">
+                    <span>Giữ hạng tháng @MembershipService.MonthLabel(k.Month): <b>@(k.Exempt is not null ? $"Đã chi {Money.Format(k.Spent)}" : $"{Money.Format(k.Spent)} / {Money.Format(k.Required)}")</b></span>
+                    @if (k.Exempt is not null) { <span class="badge neutral">Miễn xét</span> } else if (k.Missing > 0) { <span class="badge orange">Thiếu @Money.Format(k.Missing)</span> } else { <span class="badge fresh">Đủ điều kiện</span> }
+                </div>
+                @if (k.Exempt is null)
+                {
+                    <div class="meter"><div style="width:@Math.Min(100, k.Spent * 100 / Math.Max(1, k.Required))%;background:@(k.Missing > 0 ? "var(--orange)" : "var(--fresh)")"></div></div>
+                }
+                <small class="muted">
+                    @if (k.Exempt == KeepExemption.BaseTier) { <text>Hạng @tier.Label không cần duy trì chi tiêu hằng tháng.</text> }
+                    else if (k.Exempt == KeepExemption.UpgradeMonth) { <text>Khách lên hạng @tier.Label trong tháng này nên chưa bị xét. Từ tháng @MembershipService.MonthLabel(MembershipService.ShiftMonth(k.Month, 1)) cần chi tối thiểu @Money.Format(tier.KeepPerMonth) mỗi tháng.</text> }
+                    else if (k.Missing > 0) { <text>Còn @k.DaysLeft ngày để chi thêm @Money.Format(k.Missing). Nếu không đủ, ngày @reviewDay khách xuống hạng @(k.DropTo is MemberTier drop ? MembershipService.Info(drop).Label : "").</text> }
+                    else { <text>Đã đủ mức giữ hạng @tier.Label cho đợt xét ngày @reviewDay.</text> }
+                </small>
+            </div>
+            <ul class="list-plain" style="font-size:13px">
+                <li>Voucher đồ uống -@Money.Format(tier.DrinkVoucher)/ly · @tier.VouchersPerMonth voucher/tháng</li>
+                <li>Tháng sinh nhật giảm @((tier.BirthdayDrinkDiscount * 100).ToString("0"))% đồ uống</li>
+                <li>@tier.FreeDrink</li>
+            </ul>
+        </section>
+
+        <section class="panel">
+            <div class="mini">
+                <div><small>Tổng chi tiêu</small><b>@Money.Format(c.TotalSpent)</b></div>
+                <div><small>Số đơn</small><b>@c.OrderCount</b></div>
+                <div><small>Giá trị TB/đơn</small><b>@Money.Format(avg)</b></div>
+            </div>
+            <p class="cell-sub" style="margin:10px 0 0">
+                Hay mua nhất: <b>@(d.Favourite is { } f ? $"{f.Name} ({f.Quantity} sp)" : "Chưa có")</b> ·
+                Mua gần nhất: <b>@(d.LastOrderAt?.ToString("dd/MM/yyyy HH:mm") ?? "Chưa có")</b>
+            </p>
+        </section>
+
+        <section class="panel flush">
+            <div class="panel-head pad"><div><h2>Đơn hàng gần đây</h2><p>@d.RecentOrders.Count / @d.OrderTotal đơn trên hệ thống</p></div></div>
+            @if (d.RecentOrders.Count == 0)
+            {
+                <p class="empty">Khách chưa có đơn hàng nào trên hệ thống.</p>
+            }
+            else
+            {
+                <div class="table-wrap">
+                    <table class="table">
+                        <tbody>
+                            @foreach (var o in d.RecentOrders)
+                            {
+                                <tr>
+                                    @* Đơn của cửa hàng khác: quản lý/thu ngân không mở được chi tiết nên chỉ hiện mã. *@
+                                    <td>@if (viewer?.IsAdmin == true || viewer?.StoreId == o.StoreId) { <a class="code-link" asp-controller="Orders" asp-action="Detail" asp-route-id="@o.Code">@o.Code</a> } else { <b class="tabular" title="Đơn của cửa hàng khác">@o.Code</b> }<span class="cell-sub">@o.CreatedAt.ToString("dd/MM/yyyy HH:mm") · @Labels.Channel(o.Channel) · CH @o.Store?.Code</span></td>
+                                    <td class="num">@Money.Format(o.Total)</td>
+                                    <td><span class="badge @Labels.Tone(o.Status)">@Labels.Status(o.Status)</span></td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </section>
+    </div>
+
+    <div style="display:grid;gap:16px">
+        <section class="panel">
+            <div class="panel-head"><div><h2>Sao vàng</h2><p>1 sao cho mỗi @Money.Format(StarService.StarSpend) chi tiêu</p></div></div>
+            <div class="mini">
+                <div><small>Sao hiện có</small><b>★ @c.Stars</b></div>
+                <div><small>Chi thêm để có sao tiếp theo</small><b>@Money.Format(StarService.SpendToNextStar(c.StarCarry))</b></div>
+            </div>
+            @if (d.Stars.Count == 0)
+            {
+                <p class="muted">Chưa có biến động sao vàng.</p>
+            }
+            else
+            {
+                <p class="cell-sub" style="margin:10px 0 4px">Biến động gần đây · @d.Stars.Count / @d.StarCount lượt</p>
+                <ul class="list-plain">
+                    @foreach (var s in d.Stars)
+                    {
+                        <li style="display:flex;justify-content:space-between;gap:8px"><span>@s.Note<span class="cell-sub">@s.At.ToString("dd/MM/yyyy HH:mm")</span></span><span class="badge @(s.Delta > 0 ? "fresh" : "neutral")">@(s.Delta > 0 ? "+" : "−")@Math.Abs(s.Delta) sao</span></li>
+                    }
+                </ul>
+            }
+        </section>
+
+        <section class="panel">
+            <div class="panel-head"><div><h2>Voucher đổi sao</h2><p>@d.Vouchers.Count voucher</p></div></div>
+            @if (d.Vouchers.Count == 0)
+            {
+                <p class="muted" style="margin:0">Khách chưa đổi voucher nào bằng sao vàng.</p>
+            }
+            else
+            {
+                <ul class="list-plain">
+                    @foreach (var v in d.Vouchers)
+                    {
+                        var state = VoucherState(v);
+                        <li><b>@v.Code</b> · Giảm @Money.Format(v.Value) <span class="badge @(state == "Chưa dùng" ? "fresh" : "neutral")">@state</span>
+                            <span class="cell-sub">Đơn từ @Money.Format(v.MinOrderValue ?? 0) · HSD @v.EndsAt.ToString("dd/MM/yyyy")</span></li>
+                    }
+                </ul>
+            }
+        </section>
+
+        <section class="panel">
+            <div class="panel-head"><div><h2>Lịch sử hạng</h2>@if (d.TierHistory.Count > 5) { <p>5 / @d.TierHistory.Count lần thay đổi</p> }</div></div>
+            @if (d.TierHistory.Count == 0)
+            {
+                <p class="muted" style="margin:0">Chưa có thay đổi hạng nào.</p>
+            }
+            else
+            {
+                <ul class="list-plain">
+                    @foreach (var h in d.TierHistory.Take(5))
+                    {
+                        var up = Array.IndexOf(MembershipService.Order, h.To) > Array.IndexOf(MembershipService.Order, h.From);
+                        <li>
+                            <span class="tier-chip @h.From">@MembershipService.Info(h.From).Label</span> → <span class="tier-chip @h.To">@MembershipService.Info(h.To).Label</span>
+                            <span class="badge @(up ? "fresh" : "orange")">@(up ? "Lên hạng" : "Xuống hạng")</span>
+                            <span class="cell-sub">@h.At.ToString("dd/MM/yyyy") · @h.Reason</span>
+                        </li>
+                    }
+                </ul>
+            }
+        </section>
+
+        <section class="panel">
+            <div class="panel-head"><h2>Thông tin cá nhân</h2>@if (birthdayThisMonth) { <span class="badge orange">Sinh nhật tháng này</span> }</div>
+            @if (canManage)
+            {
+                <details class="inline-dialog" open="@editing">
+                    <summary>@Icons.Svg("edit", 14) Sửa</summary>
+                    <form method="post" asp-action="Profile" asp-route-id="@c.Id" class="form">
+                        <label class="field"><span>Họ tên</span><input name="fullName" value="@(posted?.FullName ?? c.FullName)" maxlength="60" class="@Forms.Invalid(e, "FullName")" />@Forms.Error(e, "FullName")</label>
+                        <label class="field"><span>Email</span><input name="email" type="email" value="@(posted is null ? c.Email : posted.Value.Email)" placeholder="ten@email.com" class="@Forms.Invalid(e, "Email")" />@Forms.Error(e, "Email")</label>
+                        <label class="field"><span>Ngày sinh</span><input name="birthday" type="date" max="@Model.Now.ToString("yyyy-MM-dd")" value="@((posted is null ? c.Birthday : posted.Value.Birthday)?.ToString("yyyy-MM-dd"))" class="@Forms.Invalid(e, "Birthday")" />@Forms.Error(e, "Birthday")</label>
+                        <small class="muted">Số điện thoại là tài khoản đăng nhập của khách nên không sửa được ở đây.</small>
+                        <div class="form-actions"><a class="btn" asp-action="Detail" asp-route-id="@c.Id">Huỷ</a><button class="btn btn-primary" type="submit">Lưu thay đổi</button></div>
+                    </form>
+                </details>
+            }
+            <dl class="kv" style="margin-top:10px">
+                <dt>Họ tên</dt><dd>@c.FullName</dd>
+                <dt>Số điện thoại</dt><dd>@Phone.Format(c.Phone)</dd>
+                <dt>Email</dt><dd>@(c.Email ?? "Chưa có")</dd>
+                <dt>Ngày sinh</dt><dd>@(c.Birthday?.ToString("dd/MM/yyyy") ?? "Chưa có")</dd>
+            </dl>
+        </section>
+
+        <section class="panel">
+            <div class="panel-head"><div><h2>Sổ địa chỉ</h2><p>@c.Addresses.Count địa chỉ</p></div></div>
+            @if (c.Addresses.Count == 0)
+            {
+                <p class="muted" style="margin:0">Khách chưa lưu địa chỉ giao hàng.</p>
+            }
+            else
+            {
+                <ul class="list-plain">
+                    @foreach (var a in c.Addresses.OrderByDescending(a => a.IsDefault))
+                    {
+                        <li>@if (a.IsDefault) { <span class="badge fresh">Mặc định</span> } <b>@a.Label</b><span class="cell-sub">@a.Recipient · @Phone.Format(a.Phone)</span><span class="cell-sub">@a.Line, @a.Ward, @a.Province</span></li>
+                    }
+                </ul>
+            }
+        </section>
+    </div>
+</div>

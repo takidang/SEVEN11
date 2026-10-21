@@ -1,0 +1,97 @@
+@using System.Globalization
+@using SevenEleven.Core.Models
+@using SevenEleven.Core.Services
+@using SevenEleven.Web.Infrastructure
+@using SevenEleven.Web.Models.Shop
+@model StoreDirectoryModel
+@{
+    var provinces = Model.Provinces;
+    var visible = Model.Visible();
+    var shown = visible.Select(v => v.Store.Id).ToHashSet();
+    var distances = visible.Where(v => v.Km is not null).ToDictionary(v => v.Store.Id, v => v.Km!.Value);
+    // Có vị trí thì xếp gần nhất trước; cửa hàng bị lọc vẫn có trong trang (ẩn) để lọc tại chỗ không tải lại.
+    var ordered = Model.Stores.OrderBy(s => shown.Contains(s.Id) ? 0 : 1).ThenBy(s => distances.GetValueOrDefault(s.Id, double.MaxValue)).ThenBy(s => s.Code).ToList();
+    var active = Model.Stores.Count(s => s.Status == StoreStatus.Active);
+    string Coord(double v) => v.ToString(CultureInfo.InvariantCulture);
+    var tinh = Model.Province ?? "tat-ca";
+}
+<div class="stack sd" data-store-directory data-radius="@DeliveryService.RadiusKm.ToString(CultureInfo.InvariantCulture)">
+    <header>
+        <h1 class="page-title">Hệ thống cửa hàng</h1>
+        <p class="small muted mt-1">@Model.Stores.Count cửa hàng tại @string.Join(" và ", provinces.Select(p => p.Name)), @active cửa hàng đang phục vụ. Chọn cửa hàng gần bạn để đơn online được chuẩn bị và giao nhanh trong 24 phút.</p>
+    </header>
+
+    @if (Model.Selected is { } sel)
+    {
+        <div class="sd-selected">
+            @ShopIcons.Svg("store", 20)
+            <p>Đơn online đang giao từ cửa hàng <b>@sel.Code – @sel.Name</b>, @sel.Ward, @sel.Province.</p>
+        </div>
+    }
+
+    <div class="sd-toolbar">
+        <div class="sd-chips no-scrollbar" role="group" aria-label="Lọc theo tỉnh thành">
+            <a class="chip chip-lg" href="?tinh=tat-ca" data-province-chip="" aria-pressed="@(Model.Province is null ? "true" : "false")">Tất cả <span class="chip-n">@Model.Stores.Count</span></a>
+            @foreach (var (name, count) in provinces)
+            {
+                <a class="chip chip-lg" href="?tinh=@Uri.EscapeDataString(name)" data-province-chip="@name" aria-pressed="@(Model.Province == name ? "true" : "false")">@name <span class="chip-n">@count</span></a>
+            }
+        </div>
+        <form class="sd-search" method="get" action="@ShopUrls.Stores" role="search">
+            <input type="hidden" name="tinh" value="@tinh" data-province-input />
+            <button type="button" class="btn btn-outline" data-near-me>@ShopIcons.Svg("crosshair", 16) Gần tôi</button>
+            <label class="sd-input">
+                @ShopIcons.Svg("search", 16, "muted")
+                <input type="search" name="q" value="@Model.Query" placeholder="Tìm theo tên, địa chỉ hoặc mã cửa hàng" aria-label="Tìm cửa hàng" data-store-search autocomplete="off" />
+            </label>
+        </form>
+    </div>
+
+    <p class="small muted" aria-live="polite" data-near-status>Hiển thị <b class="ink" data-count>@visible.Count</b> cửa hàng<span data-near-suffix>@(Model.Point is null ? "" : ", gần bạn nhất trước")</span></p>
+
+    <ul class="sd-grid" data-store-list>
+        @foreach (var s in ordered)
+        {
+            var open = s.Status == StoreStatus.Active;
+            var isSelected = Model.Selected?.Id == s.Id;
+            <li data-store data-province="@s.Province" data-text="@Text.Fold($"{s.Code} {s.Name} {s.Address} {s.Ward} {s.Province}")"
+                data-lat="@Coord(s.Lat)" data-lng="@Coord(s.Lng)" data-open="@(open ? "true" : "false")" data-label="@s.Code – @s.Name" hidden="@(!shown.Contains(s.Id))">
+                <article class="sd-card @(isSelected ? "selected" : null)">
+                    <div class="sd-card-head">
+                        <span class="sd-ic @(open ? "tint-brand" : "sd-ic-off")">@ShopIcons.Svg("store", 20)</span>
+                        <div class="min-w-0 flex-1">
+                            <h2 class="sd-name">@s.Code – @s.Name</h2>
+                            <p class="xs muted">@s.Ward, @s.Province<span class="sd-km" data-distance>@(distances.TryGetValue(s.Id, out var km) ? $" · cách {DeliveryService.FormatDistance(km)}" : "")</span></p>
+                        </div>
+                        @Tones.Badge(open ? "fresh" : s.Status == StoreStatus.Maintenance ? "warning" : "neutral", Labels.Store(s.Status))
+                    </div>
+                    <ul class="sd-lines">
+                        <li>@ShopIcons.Svg("map-pin", 16, "muted")<span>@s.Address</span></li>
+                        <li>@ShopIcons.Svg("phone", 16, "muted")<a class="tabular sd-phone" href="tel:@s.Phone">@Fmt.Phone(s.Phone)</a></li>
+                        <li>@ShopIcons.Svg("clock", 16, "muted")<span>@StoreDirectoryModel.Hours(s.OpenHours)</span></li>
+                    </ul>
+                    <div class="sd-actions">
+                        <a class="btn btn-outline" href="@StoreDirectoryModel.MapsUrl(s)" target="_blank" rel="noopener noreferrer">@ShopIcons.Svg("navigation", 16) Chỉ đường</a>
+                        @if (isSelected)
+                        {
+                            <button class="btn sd-current" type="button" disabled>@ShopIcons.Svg("check", 16) Đang giao từ đây</button>
+                        }
+                        else
+                        {
+                            <form method="post" asp-controller="Store" asp-action="Choose">
+                                <input type="hidden" name="id" value="@s.Id" />
+                                <input type="hidden" name="tinh" value="@tinh" />
+                                <button class="btn" type="submit" disabled="@(!open)">@(open ? "Giao từ cửa hàng này" : "Tạm ngưng nhận đơn")</button>
+                            </form>
+                        }
+                    </div>
+                </article>
+            </li>
+        }
+    </ul>
+
+    <div data-store-empty hidden="@(visible.Count > 0)">
+        <partial name="_Empty" model="@(new EmptyState("search-x", "Không tìm thấy cửa hàng phù hợp", "Thử tìm theo tên đường, phường hoặc mã cửa hàng khác.", "Xoá bộ lọc", ShopUrls.Stores + "?tinh=tat-ca", ActionCss: "btn-outline"))" />
+    </div>
+</div>
+<script src="~/js/geo.js" asp-append-version="true"></script>

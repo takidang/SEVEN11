@@ -1,0 +1,79 @@
+@using SevenEleven.Core.Models
+@using SevenEleven.Core.Services
+@using SevenEleven.Web.Infrastructure
+@using SevenEleven.Web.Models.Shop
+@model AccountModel
+@{
+    var c = Model.Customer;
+    var errors = Model.ProfileErrors;
+    var values = Model.ProfileValues;
+    var name = values?.FullName ?? c.FullName;
+    var email = values?.Email ?? c.Email ?? "";
+    var birthday = values?.Birthday ?? c.Birthday?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture) ?? "";
+    var today = Model.Now.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+    var best = Math.Round(MembershipService.Info(MemberTier.Diamond).BirthdayDrinkDiscount * 100);
+    string Invalid(string f) => errors?.Of(f) is null ? "false" : "true";
+}
+<div class="profile-grid">
+    <section class="panel2">
+        <div class="panel2-head">
+            <div>
+                <h2 class="panel2-title">Thông tin cá nhân</h2>
+                <p class="panel2-desc">Dùng để giao hàng và gửi ưu đãi dành riêng cho bạn.</p>
+            </div>
+        </div>
+        <div class="panel2-body">
+            <form method="post" asp-controller="Account" asp-action="Profile" class="stack-4" novalidate data-dirty-form data-has-errors="@(errors is null ? "false" : "true")">
+                <div class="field2">
+                    <label for="profile-name">Họ và tên</label>
+                    <input id="profile-name" name="FullName" value="@name" autocomplete="name" aria-invalid="@Invalid("FullName")" />
+                    @Forms.Error(errors, "FullName")
+                </div>
+                <div class="field2">
+                    <label for="profile-phone">Số điện thoại</label>
+                    <input id="profile-phone" value="@Fmt.Phone(c.Phone)" disabled readonly />
+                    <p class="field-hint">Số điện thoại dùng để đăng nhập nên không thể thay đổi.</p>
+                </div>
+                <div class="form-grid-2">
+                    <div class="field2">
+                        <label for="profile-email">Email <span class="muted fw-normal">(không bắt buộc)</span></label>
+                        <input id="profile-email" name="Email" type="email" value="@email" autocomplete="email" placeholder="ten@email.com" aria-invalid="@Invalid("Email")" />
+                        @Forms.Error(errors, "Email")
+                    </div>
+                    <div class="field2">
+                        <label for="profile-birthday">Ngày sinh</label>
+                        <input id="profile-birthday" name="Birthday" type="date" min="1900-01-01" max="@today" value="@birthday" aria-invalid="@Invalid("Birthday")" />
+                        @Forms.Error(errors, "Birthday")
+                    </div>
+                </div>
+                <p class="field-hint">Tháng sinh nhật được giảm đến @best% đồ uống tuỳ hạng thành viên.</p>
+                <div class="form-actions">
+                    <button type="reset" class="btn btn-ghost" data-dirty-enable>Huỷ thay đổi</button>
+                    <button type="submit" class="btn" data-dirty-enable>Lưu thay đổi</button>
+                </div>
+            </form>
+        </div>
+    </section>
+
+    <div class="stack">
+        <section class="panel2">
+            <div class="panel2-head"><h2 class="panel2-title">Tài khoản thành viên</h2></div>
+            <div class="panel2-body">
+                <dl class="kv">
+                    <div><dt>Ngày tham gia</dt><dd class="tabular">@Fmt.Date(c.JoinedAt)</dd></div>
+                    <div><dt>Số đơn đã mua</dt><dd class="tabular">@Fmt.Num(c.OrderCount)</dd></div>
+                    <div><dt>Tổng chi tiêu</dt><dd class="tabular">@Fmt.Vnd(c.TotalSpent)</dd></div>
+                </dl>
+            </div>
+        </section>
+        <section class="panel2">
+            <div class="panel2-head"><h2 class="panel2-title">Đăng xuất</h2></div>
+            <div class="panel2-body">
+                <p class="small muted lh-6">Lần sau bạn đăng nhập lại bằng số điện thoại và mật khẩu. Giỏ hàng vẫn được giữ trên thiết bị này.</p>
+                <form method="post" asp-controller="Account" asp-action="Logout">
+                    <button type="submit" class="btn btn-outline btn-block btn-danger mt-4">@ShopIcons.Svg("log-out", 16) Đăng xuất</button>
+                </form>
+            </div>
+        </section>
+    </div>
+</div>

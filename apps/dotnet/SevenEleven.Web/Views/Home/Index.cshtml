@@ -1,0 +1,232 @@
+@using SevenEleven.Core.Models
+@using SevenEleven.Core.Services
+@using SevenEleven.Web.Infrastructure
+@using SevenEleven.Web.Models.Shop
+@model HomeModel
+@{
+    var slot = Model.Featured;
+    var now = Model.Now;
+    var photos = Model.BannerPhotos;
+}
+<div class="stack-8">
+    <h1 class="sr-only">7-Eleven – mở cửa 24 giờ, giao hàng 24 phút</h1>
+
+    <section class="hero-row" aria-label="Chương trình nổi bật">
+        @* Banner A: khung flash sale đang chạy (hoặc sắp mở). *@
+        <a class="banner banner-flash" href="@ShopUrls.Promotions"
+           aria-label="@(slot is null ? "Xem flash sale và khuyến mãi" : $"Flash sale {slot.Promotion.Name}: giảm {slot.Promotion.Value}%, {slot.Window}. Xem khuyến mãi")">
+            <div class="banner-bg" aria-hidden="true"></div>
+            <div class="banner-glow" aria-hidden="true"></div>
+            <div class="banner-copy">
+                <div class="banner-kicker">
+                    <span class="banner-chip">@ShopIcons.Svg("zap", 14, "i-fill") Flash sale</span>
+                    @if (slot is not null)
+                    {
+                        <span class="banner-window">@slot.Window</span>
+                    }
+                </div>
+                <p class="banner-title headline">@(slot?.Promotion.Name ?? "Giá sốc mỗi ngày")</p>
+                <span class="banner-tag headline">@(slot is null ? "Mua là có quà" : $"Giảm {slot.Promotion.Value}%")</span>
+                <div class="banner-foot">
+                    @if (slot?.State == SlotState.Live)
+                    {
+                        var left = Fmt.SecondsLeft(slot.End, now);
+                        <div class="banner-live">
+                            <span class="banner-live-label">Kết thúc sau</span>
+                            <span class="digits" role="timer" data-left="@left" data-reload>
+                                <b data-digit>@((left / 3600).ToString("00"))</b><i>:</i><b data-digit>@((left % 3600 / 60).ToString("00"))</b><i>:</i><b data-digit>@((left % 60).ToString("00"))</b>
+                            </span>
+                        </div>
+                    }
+                    else if (slot is not null)
+                    {
+                        <span class="banner-pill">
+                            @ShopIcons.Svg("clock", 16)
+                            <span class="short">@slot.OpensLabel(now, compact: true)</span>
+                            <span class="long">@slot.OpensLabel(now)</span>
+                        </span>
+                        @if (slot.NextStart is DateTime opens && opens.Date == now.Date)
+                        {
+                            <span hidden data-left="@Fmt.SecondsLeft(opens, now)" data-reload></span>
+                        }
+                    }
+                    else
+                    {
+                        <span class="banner-hunt">Săn deal giảm giá mỗi ngày</span>
+                    }
+                    <span class="banner-cta">Săn deal ngay @ShopIcons.Svg("arrow-right", 16)</span>
+                </div>
+            </div>
+            <div aria-hidden="true">
+                @if (photos.Count > 2)
+                {
+                    <div class="plate plate-sm"><img src="@ShopImages.Url(photos[2].Src, 110)" alt="" class="@photos[2].Zoom" /></div>
+                }
+                @if (photos.Count > 0)
+                {
+                    <div class="plate-big-wrap">
+                        <div class="plate plate-big"><img src="@ShopImages.Url(photos[0].Src, 220)" alt="" class="@photos[0].Zoom" /></div>
+                        @if (slot is not null)
+                        {
+                            <span class="plate-badge headline">-@slot.Promotion.Value%</span>
+                        }
+                    </div>
+                }
+                @if (photos.Count > 1)
+                {
+                    <div class="plate plate-md"><img src="@ShopImages.Url(photos[1].Src, 140)" alt="" class="@photos[1].Zoom" /></div>
+                }
+            </div>
+        </a>
+
+        @* Banner B: chương trình thành viên "Mua sắm – nâng hạng". *@
+        <a class="banner banner-member" href="@ShopUrls.Membership" aria-label="Chương trình thành viên Mua sắm – nâng hạng">
+            <div class="banner-bg" aria-hidden="true"></div>
+            <div class="banner-ring" aria-hidden="true"></div>
+            <div class="banner-copy">
+                <span class="banner-chip">Thành viên 7-Eleven</span>
+                <p class="banner-title headline">Mua sắm –<br />nâng hạng</p>
+                <p class="banner-text">Đủ mốc là lên hạng, voucher đồ uống đến -@Fmt.CompactUpper(MembershipService.Info(MemberTier.Diamond).DrinkVoucher)/ly</p>
+                <span class="banner-cta">Xem quyền lợi @ShopIcons.Svg("arrow-right", 16)</span>
+            </div>
+            <div class="steps" aria-hidden="true">
+                @foreach (var t in MembershipService.Order)
+                {
+                    var info = MembershipService.Info(t);
+                    <div class="step step-@TierStyle.Key(t)">
+                        @if (t == MemberTier.Diamond && Model.MemberCup is Product cup)
+                        {
+                            <div class="step-cup"><img src="@ShopImages.Url(cup.Image, 120)" alt="" /></div>
+                        }
+                        <div class="step-block">
+                            <span class="step-name">@info.Label</span>
+                            <span class="step-value headline">-@Fmt.CompactUpper(info.DrinkVoucher)</span>
+                            <span class="step-unit">mỗi ly</span>
+                        </div>
+                    </div>
+                }
+            </div>
+        </a>
+    </section>
+
+    <section>
+        <div class="sec-head"><h2>Gợi ý cho bạn</h2></div>
+        <div class="scroll-row" data-rail>
+            <div class="scroll-row-track" data-rail-track>
+                <div class="scroll-row-items" role="group" aria-label="Gợi ý cho bạn">
+                    @foreach (var (c, tilePhotos) in Model.Collections)
+                    {
+                        var zoom = c.Tall ? "z110" : "z125";
+                        <a class="coll" href="@c.Href">
+                            <div class="coll-art @c.Tint" aria-hidden="true">
+                                @if (tilePhotos.Count > 0)
+                                {
+                                    <div class="plate coll-big"><img src="@ShopImages.Url(tilePhotos[0].Image, 110)" alt="" class="@zoom" loading="lazy" /></div>
+                                }
+                                @if (tilePhotos.Count > 1)
+                                {
+                                    <div class="plate coll-left"><img src="@ShopImages.Url(tilePhotos[1].Image, 72)" alt="" class="@zoom" loading="lazy" /></div>
+                                }
+                                @if (tilePhotos.Count > 2)
+                                {
+                                    <div class="plate coll-right"><img src="@ShopImages.Url(tilePhotos[2].Image, 72)" alt="" class="@zoom" loading="lazy" /></div>
+                                }
+                            </div>
+                            <p class="coll-title">@c.Title</p>
+                        </a>
+                    }
+                </div>
+            </div>
+            <button type="button" class="rail-btn rail-prev" data-rail-prev aria-label="Xem trước">@ShopIcons.Svg("chevron-left", 20)</button>
+            <button type="button" class="rail-btn rail-next" data-rail-next aria-label="Xem thêm">@ShopIcons.Svg("chevron-right", 20)</button>
+        </div>
+    </section>
+
+    <section>
+        <div class="sec-head"><h2>Danh mục sản phẩm</h2></div>
+        <div class="scroll-row cat-strip" data-rail>
+            <div class="scroll-row-track" data-rail-track>
+                <div class="scroll-row-items" role="group" aria-label="Danh mục sản phẩm">
+                    <a class="cat-item" href="@ShopUrls.Promotions">
+                        <span class="cat-circle flash">@ShopIcons.Svg("zap", 28, "i-fill")</span>
+                        <span class="cat-label">Flash Sale</span>
+                    </a>
+                    @foreach (var c in Model.Categories)
+                    {
+                        <a class="cat-item" href="@ShopUrls.Category(c.Slug)">
+                            <span class="cat-circle"><img src="@ShopImages.Url(c.Icon, 64)" alt="" loading="lazy" /></span>
+                            <span class="cat-label">@c.Name</span>
+                        </a>
+                    }
+                </div>
+            </div>
+            <button type="button" class="rail-btn rail-prev" data-rail-prev aria-label="Xem trước">@ShopIcons.Svg("chevron-left", 20)</button>
+            <button type="button" class="rail-btn rail-next" data-rail-next aria-label="Xem thêm">@ShopIcons.Svg("chevron-right", 20)</button>
+        </div>
+    </section>
+
+    @if (Model.Slots.Count > 0 && Model.Selected is FlashSlot picked)
+    {
+        <section id="flash-sale">
+            <div class="sec-head">
+                <h2><a href="@ShopUrls.Promotions">Flash Sale</a></h2>
+                <div class="sec-chips">
+                    @foreach (var s in Model.Slots)
+                    {
+                        var on = s.Promotion.Id == picked.Promotion.Id;
+                        <a class="chip @(on ? "active" : null)" href="?khung=@s.Promotion.Id#flash-sale" data-switch="flash:@s.Promotion.Id"
+                           aria-pressed="@(on ? "true" : "false")">@s.Promotion.Name</a>
+                    }
+                </div>
+                @foreach (var s in Model.Slots)
+                {
+                    <span class="sec-note" data-panel="flash:@s.Promotion.Id" hidden="@(s.Promotion.Id != picked.Promotion.Id)">
+                        @if (s.State == SlotState.Live)
+                        {
+                            var left = Fmt.SecondsLeft(s.End, now);
+                            <span class="cd cd-sm" data-left="@left" data-reload>Kết thúc sau <b data-clock>@Fmt.Clock(left)</b></span>
+                        }
+                        else
+                        {
+                            @ShopIcons.Svg("clock", 16, "text-orange")
+                            @s.OpensLabel(now)
+                        }
+                        <span class="hide-sm">· Giảm @s.Promotion.Value%</span>
+                    </span>
+                }
+                <a class="sec-all" href="@ShopUrls.Promotions">Xem tất cả @ShopIcons.Svg("chevron-right", 16)</a>
+            </div>
+            @foreach (var s in Model.Slots)
+            {
+                <div data-panel="flash:@s.Promotion.Id" hidden="@(s.Promotion.Id != picked.Promotion.Id)">
+                    <partial name="_ProductRail" model="Model.SlotProducts[s.Promotion.Id]" />
+                </div>
+            }
+        </section>
+    }
+
+    @if (Model.NewProducts.Count > 0)
+    {
+        <section>
+            <div class="sec-head"><h2>Sản phẩm mới</h2></div>
+            <partial name="_ProductRail" model="Model.NewProducts" />
+        </section>
+    }
+
+    @foreach (var (category, products) in Model.CategoryRails)
+    {
+        <section>
+            <div class="sec-head">
+                <h2><a href="@ShopUrls.Category(category.Slug)">@category.Name</a></h2>
+                <div class="sec-chips">
+                    @foreach (var sub in category.Subcategories)
+                    {
+                        <a class="chip" href="@ShopUrls.Category(category.Slug, sub.Slug)">@sub.Name</a>
+                    }
+                </div>
+                <a class="sec-all" href="@ShopUrls.Category(category.Slug)">Xem tất cả @ShopIcons.Svg("chevron-right", 16)</a>
+            </div>
+            <partial name="_ProductRail" model="products" />
+        </section>
+    }
+</div>

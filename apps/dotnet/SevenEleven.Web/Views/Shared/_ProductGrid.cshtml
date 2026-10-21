@@ -1,0 +1,8 @@
+@using SevenEleven.Core.Models
+@model IEnumerable<Product>
+<div class="pgrid">
+    @foreach (var p in Model)
+    {
+        <partial name="_ProductCard" model="p" />
+    }
+</div>

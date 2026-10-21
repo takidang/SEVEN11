@@ -1,0 +1,55 @@
+@using SevenEleven.Web.Areas.Admin.Controllers
+@model PurchaseListModel
+@{
+    var all = Model.Counts.Values.Sum();
+}
+<div class="page-head">
+    <div>
+        <h1>Nhập hàng</h1>
+        <p>Phiếu nhập từ nhà cung cấp, mới nhất ở trên. Hàng chỉ vào kho khi bấm "Nhận hàng".</p>
+    </div>
+    <a class="btn btn-primary" asp-action="New">@Icons.Svg("plus", 16) Lập phiếu nhập</a>
+</div>
+
+<div class="panel flush">
+    <div style="padding:16px">
+        <nav class="seg" aria-label="Trạng thái phiếu">
+            <a asp-action="Index" class="@(Model.Status is null ? "active" : null)">Tất cả<span class="n">@all</span></a>
+            @foreach (var st in Enum.GetValues<PurchaseOrderStatus>())
+            {
+                <a asp-action="Index" asp-route-status="@st" class="@(Model.Status == st ? "active" : null)">@Labels.Purchase(st)<span class="n">@Model.Counts.GetValueOrDefault(st)</span></a>
+            }
+        </nav>
+    </div>
+    @if (Model.Orders.Count == 0)
+    {
+        <p class="empty">Chưa có phiếu nào trong mục này.</p>
+    }
+    else
+    {
+        <div class="table-wrap">
+            <table class="table">
+                <thead><tr><th>Mã phiếu</th><th>Nhà cung cấp</th>@if (Model.IsChain) { <th>Cửa hàng</th> }<th class="num">Mặt hàng</th><th class="num">Tiền hàng</th><th>Trạng thái</th><th>Lập lúc</th><th>Hẹn giao / đã nhận</th></tr></thead>
+                <tbody>
+                    @foreach (var p in Model.Orders)
+                    {
+                        var late = p.Status == PurchaseOrderStatus.Ordered && p.ExpectedAt < Model.Now;
+                        <tr>
+                            <td><a class="code-link" asp-action="Detail" asp-route-id="@p.Id">@p.Code</a></td>
+                            <td class="wrap">@p.Supplier?.Name</td>
+                            @if (Model.IsChain) { <td>@p.Store?.Code</td> }
+                            <td class="num">@p.Items.Count</td>
+                            <td class="num">@Money.Format(p.Total)</td>
+                            <td><span class="badge @Labels.Tone(p.Status)">@Labels.Purchase(p.Status)</span></td>
+                            <td>@p.CreatedAt.ToString("HH:mm dd/MM")</td>
+                            <td class="@(late ? "neg" : null)">
+                                @if (p.Status == PurchaseOrderStatus.Received) { <text>Nhận @p.ReceivedAt?.ToString("HH:mm dd/MM")</text> }
+                                else if (p.Status == PurchaseOrderStatus.Ordered) { <text>Hẹn @p.ExpectedAt?.ToString("HH:mm dd/MM")@(late ? " · trễ" : "")</text> }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>

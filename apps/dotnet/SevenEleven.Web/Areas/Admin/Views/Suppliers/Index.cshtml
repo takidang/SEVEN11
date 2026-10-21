@@ -1,0 +1,62 @@
+@using SevenEleven.Web.Areas.Admin.Controllers
+@model SupplierListModel
+@{
+    var scopeStore = ViewBag.ScopeStore as Store;
+    bool canManage = ViewBag.CanManage;
+}
+<div class="page-head">
+    <div>
+        <h1>Nhà cung cấp</h1>
+        <p>@Model.Total nhà cung cấp · @Model.Active đang hợp tác@(scopeStore is null ? "" : $" · số phiếu nhập tính tại cửa hàng {scopeStore.Code}")</p>
+    </div>
+    @if (canManage)
+    {
+        <a class="btn btn-primary" asp-action="Edit">@Icons.Svg("plus", 16) Thêm nhà cung cấp</a>
+    }
+</div>
+<div class="panel flush">
+    <form method="get" class="toolbar" style="padding:16px">
+        <label class="search-box">
+            @Icons.Svg("search", 16)
+            <input class="input" name="q" value="@Model.Query" placeholder="Tìm tên, mã, người liên hệ, MST" aria-label="Tìm nhà cung cấp" />
+        </label>
+        <select class="input" name="status" aria-label="Trạng thái" onchange="this.form.submit()">
+            <option value="">Tất cả trạng thái</option>
+            <option value="dang-hop-tac" selected="@(Model.Status == "dang-hop-tac")">Đang hợp tác</option>
+            <option value="ngung" selected="@(Model.Status == "ngung")">Ngừng hợp tác</option>
+        </select>
+        <button class="btn" type="submit">Lọc</button>
+        <span class="grow"></span>
+        <span class="result-count">@Model.Suppliers.Count nhà cung cấp</span>
+    </form>
+    @if (Model.Suppliers.Count == 0)
+    {
+        <p class="empty"><b>Không tìm thấy nhà cung cấp</b><br />Thử từ khoá khác hoặc đổi bộ lọc trạng thái.</p>
+    }
+    else
+    {
+        <div class="table-wrap">
+            <table class="table">
+                <thead><tr><th>Mã</th><th>Nhà cung cấp</th><th>Người liên hệ</th><th>Email</th><th>Danh mục cung cấp</th><th class="num">Phiếu nhập</th><th>Trạng thái</th></tr></thead>
+                <tbody>
+                    @foreach (var s in Model.Suppliers)
+                    {
+                        var cats = PricingService.Split(s.CategoryIds);
+                        <tr class="@(s.Status == SupplierStatus.Active ? null : "muted-row")">
+                            <td><a class="code-link" asp-action="Detail" asp-route-id="@s.Id">@s.Code</a></td>
+                            <td class="wrap"><a asp-action="Detail" asp-route-id="@s.Id"><b style="font-weight:500">@s.Name</b></a><span class="cell-sub">@s.Address</span></td>
+                            <td>@s.ContactName<span class="cell-sub">@Phone.Format(s.Phone)</span></td>
+                            <td>@s.Email</td>
+                            <td class="wrap">
+                                @foreach (var c in cats.Take(2)) { <span class="chip-soft">@Model.Categories.GetValueOrDefault(c, c)</span> }
+                                @if (cats.Length > 2) { <span class="chip-soft" title="@string.Join(", ", cats.Skip(2).Select(c => Model.Categories.GetValueOrDefault(c, c)))">+@(cats.Length - 2)</span> }
+                            </td>
+                            <td class="num">@Model.PurchaseCounts.GetValueOrDefault(s.Id)</td>
+                            <td><span class="badge @(s.Status == SupplierStatus.Active ? "fresh" : "neutral")">@(s.Status == SupplierStatus.Active ? "Đang hợp tác" : "Ngừng hợp tác")</span></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>

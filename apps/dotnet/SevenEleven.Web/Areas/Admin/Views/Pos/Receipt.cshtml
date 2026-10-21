@@ -1,0 +1,60 @@
+@model Order
+@{
+    string? cashier = ViewBag.Cashier;
+    // Dòng hàng đã trừ giảm theo món (flash sale, mua X tặng Y); phần còn lại là giảm theo đơn.
+    var goods = Model.Items.Sum(i => i.LineTotal);
+    var orderDiscount = Model.Discount - Model.Items.Sum(i => i.Discount);
+}
+<div class="page-head no-print">
+    <div>
+        <h1>Đã thanh toán</h1>
+        <p>Hoá đơn @Model.Code · @Money.Format(Model.Total)@(Model.ChangeGiven > 0 ? $" · thối lại {Money.Format(Model.ChangeGiven.Value)}" : "")</p>
+    </div>
+    <div class="page-actions">
+        <button class="btn" type="button" onclick="window.print()">@Icons.Svg("printer", 16) In hoá đơn</button>
+        <a class="btn btn-primary" asp-action="Index" autofocus data-enter-go>Đơn mới <kbd class="kbd on-brand">Enter</kbd></a>
+    </div>
+</div>
+
+<article class="receipt">
+    <h2>7-ELEVEN</h2>
+    <p class="center">@Model.Store?.Code – @Model.Store?.Name<br />@Model.Store?.Address<br />ĐT @Phone.Format(Model.Store?.Phone)</p>
+    <hr />
+    <div class="row"><span>Hoá đơn</span><span>@Model.Code</span></div>
+    <div class="row"><span>Thời gian</span><span>@Model.CreatedAt.ToString("HH:mm dd/MM/yyyy")</span></div>
+    @if (cashier is not null)
+    {
+        <div class="row"><span>Thu ngân</span><span>@cashier</span></div>
+    }
+    <hr />
+    @foreach (var i in Model.Items)
+    {
+        <div>@i.Name</div>
+        <div class="row"><span>@i.Quantity × @Money.FormatNumber(i.UnitPrice)@(i.PromoLabel is string l ? $" ({l})" : "")</span><span>@Money.FormatNumber(i.LineTotal)</span></div>
+    }
+    <hr />
+    <div class="row"><span>Tiền hàng</span><span>@Money.FormatNumber(goods)</span></div>
+    @if (orderDiscount > 0)
+    {
+        <div class="row"><span>@Labels.OrderDiscount(Model)</span><span>-@Money.FormatNumber(orderDiscount)</span></div>
+    }
+    <div class="row" style="font-weight:700;font-size:15px"><span>TỔNG CỘNG</span><span>@Money.Format(Model.Total)</span></div>
+    @if (Model.Discount > 0)
+    {
+        <div class="row"><span>Quý khách tiết kiệm</span><span>@Money.FormatNumber(Model.Discount)</span></div>
+    }
+    <div class="row"><span>@Labels.Payment(Model.PaymentMethod)</span><span>@Money.FormatNumber(Model.CashReceived ?? Model.Total)</span></div>
+    @if (Model.ChangeGiven is int change)
+    {
+        <div class="row"><span>Tiền thối</span><span>@Money.FormatNumber(change)</span></div>
+    }
+    @if (Model.Customer is { } c)
+    {
+        <hr />
+        <div class="row"><span>Thành viên</span><span>@c.FullName</span></div>
+        <div class="row"><span>Sao tích thêm</span><span>+@(Model.StarsEarned ?? 0) (tổng @c.Stars)</span></div>
+    }
+    <hr />
+    <p class="center">Cảm ơn quý khách!<br />Mở cửa 24 giờ · giao nhanh 24 phút</p>
+    <p class="center" style="font-size:11px;color:#6b7280">Đồ án môn học, không phải hoá đơn thật.</p>
+</article>

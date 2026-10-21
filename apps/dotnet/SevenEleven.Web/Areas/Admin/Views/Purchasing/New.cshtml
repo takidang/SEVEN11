@@ -1,0 +1,50 @@
+@using SevenEleven.Web.Areas.Admin.Controllers
+@model NewPurchaseModel
+@{
+    var staff = ViewBag.Staff as StaffUser;
+}
+<div class="page-head">
+    <div>
+        <h1>Lập phiếu nhập</h1>
+        <p>Chọn nhà cung cấp; phiếu nháp được điền sẵn những mặt hàng của họ đang hết hoặc sắp hết ở cửa hàng.</p>
+    </div>
+    <a class="btn" asp-action="Index">← Danh sách phiếu</a>
+</div>
+
+<form method="post" asp-action="Create" class="panel form" style="max-width:720px">
+    @if (staff?.IsAdmin == true)
+    {
+        <label class="field"><span>Cửa hàng nhận hàng</span>
+            <select name="storeId" required>
+                <option value="">Chọn cửa hàng</option>
+                @foreach (var s in Model.Stores)
+                {
+                    <option value="@s.Id" selected="@(s.Id == Model.StoreId)">@s.Code – @s.Name</option>
+                }
+            </select>
+        </label>
+    }
+    <fieldset class="field" style="border:0;padding:0;margin:0">
+        <span>Nhà cung cấp</span>
+        <div style="display:grid;gap:8px">
+            @foreach (var s in Model.Suppliers)
+            {
+                var cats = PurchasingService.CategoriesOf(s).Select(c => Model.Categories.GetValueOrDefault(c, c));
+                var shortage = Model.Shortages.GetValueOrDefault(s.Id);
+                <label class="check panel" style="padding:10px 12px;align-items:flex-start">
+                    <input type="radio" name="supplierId" value="@s.Id" required style="margin-top:3px" />
+                    <span>
+                        <b>@s.Code – @s.Name</b>
+                        <span class="cell-sub">@string.Join(", ", cats) · @s.ContactName @Phone.Format(s.Phone)</span>
+                        @if (shortage > 0)
+                        {
+                            <span class="cell-sub state-low">@shortage mặt hàng đang hết hoặc sắp hết</span>
+                        }
+                    </span>
+                </label>
+            }
+        </div>
+    </fieldset>
+    <label class="field"><span>Ghi chú cho nhà cung cấp (không bắt buộc)</span><textarea name="note" placeholder="Giao trước 6h sáng…"></textarea></label>
+    <button class="btn btn-primary" type="submit">Lập phiếu nháp</button>
+</form>

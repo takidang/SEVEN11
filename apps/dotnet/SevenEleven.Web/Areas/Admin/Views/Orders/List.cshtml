@@ -1,0 +1,125 @@
+@using SevenEleven.Web.Areas.Admin.Controllers
+@model OrderListModel
+@{
+    string Link(int? page = null, string? tab = null, bool clear = false)
+    {
+        var query = new Dictionary<string, string?>
+        {
+            ["view"] = "list",
+            ["tab"] = (tab ?? Model.Tab) == "all" ? null : tab ?? Model.Tab,
+            ["period"] = clear || Model.Period == "hom-nay" ? null : Model.Period,
+            ["channel"] = clear ? null : Model.Channel?.ToString(),
+            ["q"] = clear ? null : Model.Query,
+            ["page"] = page is > 1 ? page.ToString() : null,
+        };
+        return "/Admin/Orders?" + string.Join("&", query.Where(kv => !string.IsNullOrEmpty(kv.Value)).Select(kv => $"{kv.Key}={Uri.EscapeDataString(kv.Value!)}"));
+    }
+    var pager = (Model.Page, Model.Pages, (Func<int, string>)(p => Link(page: p)));
+    string Waiting(DateTime at)
+    {
+        var minutes = (int)(Model.Now - at).TotalMinutes;
+        if (minutes < 1) return "vừa đặt";
+        if (minutes < 60) return $"chờ {minutes} phút";
+        if (minutes < 60 * 24) return $"chờ {minutes / 60} giờ";
+        return $"chờ {minutes / (60 * 24)} ngày";
+    }
+}
+<div class="page-head">
+    <div>
+        <h1>Đơn hàng</h1>
+        <p>@Money.FormatNumber(Model.Total) đơn hàng · @Money.Format(Model.Revenue)<span class="muted"> (không tính đơn đã huỷ)</span></p>
+    </div>
+    <partial name="_Tabs" model="@("list")" />
+</div>
+
+<div class="panel flush">
+    <div style="padding:16px;display:grid;gap:12px">
+        <form method="get" class="toolbar">
+            <input type="hidden" name="view" value="list" />
+            @if (Model.Tab != "all")
+            {
+                <input type="hidden" name="tab" value="@Model.Tab" />
+            }
+            <label class="search-box">
+                @Icons.Svg("search", 16)
+                <input class="input" name="q" value="@Model.Query" placeholder="Mã đơn, tên hoặc SĐT khách" aria-label="Tìm đơn" />
+            </label>
+            <select class="input" name="period" aria-label="Khoảng thời gian" onchange="this.form.submit()">
+                @foreach (var (key, label) in OrdersController.ListPeriods)
+                {
+                    <option value="@key" selected="@(key == Model.Period)">@label</option>
+                }
+            </select>
+            <select class="input" name="channel" aria-label="Kênh bán" onchange="this.form.submit()">
+                <option value="">Tất cả kênh</option>
+                <option value="InStore" selected="@(Model.Channel == SalesChannel.InStore)">Tại quầy</option>
+                <option value="Online" selected="@(Model.Channel == SalesChannel.Online)">Online</option>
+            </select>
+            <button class="btn" type="submit">Lọc</button>
+            @if (Model.Filtered)
+            {
+                <a class="btn btn-ghost" href="@Link(clear: true)">Xoá bộ lọc</a>
+            }
+        </form>
+        <nav class="seg" aria-label="Trạng thái">
+            @foreach (var (key, label, statuses) in OrdersController.StatusTabs)
+            {
+                <a href="@Link(tab: key)" class="@(Model.Tab == key ? "active" : null)">@label<span class="n">@Model.CountOf(statuses)</span></a>
+            }
+        </nav>
+        @if (Model.Period != "tat-ca")
+        {
+            <p class="cell-sub" style="margin:0">Đơn chưa xong (chờ xác nhận đến đang giao) luôn hiện, kể cả khi đặt trước khoảng thời gian đã chọn.</p>
+        }
+    </div>
+    @if (Model.Orders.Count == 0)
+    {
+        <p class="empty">@(Model.Filtered ? "Không có đơn nào khớp bộ lọc." : "Chưa có đơn nào trong khoảng thời gian này.")</p>
+    }
+    else
+    {
+        <div class="table-wrap">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Mã đơn</th><th>Thời gian</th>@if (Model.IsChain) { <th>Cửa hàng</th> }<th>Kênh</th><th>Khách</th>
+                        <th>Thanh toán</th><th>Trạng thái</th><th class="num">Tổng tiền</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var o in Model.Orders)
+                    {
+                        var waiting = o.Status == OrderStatus.Pending;
+                        <tr class="@(waiting ? "row-attention" : null)">
+                            <td><a class="code-link" asp-action="Detail" asp-route-id="@o.Code">@o.Code</a></td>
+                            <td>
+                                @(o.CreatedAt.Date == Model.Now.Date ? o.CreatedAt.ToString("HH:mm") : o.CreatedAt.ToString("HH:mm dd/MM"))
+                                @if (waiting) { <span class="cell-sub @((Model.Now - o.CreatedAt).TotalMinutes >= 5 ? "neg" : null)">@Waiting(o.CreatedAt)</span> }
+                            </td>
+                            @if (Model.IsChain) { <td>@o.Store?.Code</td> }
+                            <td>@Labels.Channel(o.Channel)</td>
+                            <td>
+                                @if (o.Customer is { } c)
+                                {
+                                    @c.FullName<span class="cell-sub">@Phone.Format(c.Phone)</span>
+                                }
+                                else if (o.Delivery is { } d)
+                                {
+                                    @d.Recipient<span class="cell-sub">@Phone.Format(d.Phone)</span>
+                                }
+                                else
+                                {
+                                    <span class="muted">Khách lẻ</span>
+                                }
+                            </td>
+                            <td>@Labels.Payment(o.PaymentMethod)<span class="cell-sub">@Labels.PaymentState(o.PaymentStatus)</span></td>
+                            <td><span class="badge @Labels.Tone(o.Status)">@Labels.Status(o.Status)</span></td>
+                            <td class="num">@Money.Format(o.Total)</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        <partial name="_Pager" model="pager" />
+    }
+</div>

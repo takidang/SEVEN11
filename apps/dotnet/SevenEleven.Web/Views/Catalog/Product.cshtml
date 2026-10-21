@@ -1,0 +1,284 @@
+@using SevenEleven.Core.Models
+@using SevenEleven.Core.Services
+@using SevenEleven.Web.Infrastructure
+@using SevenEleven.Web.Models.Shop
+@model ProductModel
+@{
+    var p = Model.Product;
+    var d = Model.Display;
+    var now = Model.Now;
+    var url = ShopUrls.Product(p.Slug);
+    var etaFrom = now.AddMinutes(24);
+    var etaTo = etaFrom.AddMinutes(10);
+    var bundleLabel = Model.Bundle is { } b ? $"Mua {b.BuyQuantity} tặng {b.GetQuantity}" : "";
+    var ageGate = p.AgeRestricted && !Model.AgeConfirmed ? "true" : "false";
+    string StockTone(string s) => s switch { "ok" => "fresh", "low" => "warning", _ => "danger" };
+    string StockLabel(string s) => s switch { "ok" => "Còn hàng", "low" => "Sắp hết", _ => "Tạm hết hàng" };
+    string ShelfLife(int days) => days <= 1 ? "Trong ngày (hàng tươi nhập mỗi sáng)" : $"{days} ngày kể từ ngày nhập hàng";
+}
+<div class="stack-8 pdp" data-buy data-unit="@d.Price" data-buy-x="@(Model.Bundle?.BuyQuantity ?? 0)" data-get-y="@(Model.Bundle?.GetQuantity ?? 0)"
+     data-max="@Model.Max" data-unit-name="@p.Unit" data-bundle="@bundleLabel" data-qty="1">
+    <nav aria-label="Đường dẫn" class="crumbs2">
+        <ol>
+            <li><a href="/">Trang chủ</a></li>
+            @if (Model.Category is { } cat)
+            {
+                <li aria-hidden="true">@ShopIcons.Svg("chevron-right", 14)</li>
+                <li><a href="@ShopUrls.Category(cat.Slug)">@cat.Name</a></li>
+                @if (Model.Subcategory is { } sub)
+                {
+                    <li aria-hidden="true">@ShopIcons.Svg("chevron-right", 14)</li>
+                    <li><a href="@ShopUrls.Category(cat.Slug, sub.Slug)">@sub.Name</a></li>
+                }
+            }
+            <li aria-hidden="true" class="crumb-last">@ShopIcons.Svg("chevron-right", 14)</li>
+            <li class="crumb-last"><span aria-current="page" class="trunc">@p.Name</span></li>
+        </ol>
+    </nav>
+
+    <div class="pdp-grid">
+        <div class="pdp-media">
+            <div class="pdp-img">
+                <img src="@ShopImages.Url(p.Image, 520)" alt="@p.Name" width="520" height="520" />
+                <div class="pdp-badges">
+                    @if (d.Flash is not null)
+                    {
+                        <span class="pill-tag pill-flash big">Flash sale</span>
+                    }
+                    @if (p.IsNew)
+                    {
+                        <span class="pill-tag pill-new big">Mới</span>
+                    }
+                    @if (p.AgeRestricted)
+                    {
+                        <span class="pill-tag pill-age big">18+</span>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <div class="pdp-info stack">
+            <div>
+                <p class="pdp-meta">@Fmt.Join(new[] { p.Brand, p.Origin, $"Đơn vị: {p.Unit}" })</p>
+                <h1 class="pdp-title">@p.Name</h1>
+            </div>
+
+            <div class="stack-4">
+                <div>
+                    @if (d.Flash is not null && d.FlashEndsAt is DateTime ends)
+                    {
+                        var left = Fmt.SecondsLeft(ends, now);
+                        <div class="flash-strip">
+                            <span class="flash-strip-k">@ShopIcons.Svg("zap", 16, "i-fill") Flash sale</span>
+                            <span class="flash-strip-name">@d.Flash.Name</span>
+                            <span class="cd cd-sm muted" data-left="@left" data-reload>Kết thúc sau <b data-clock>@Fmt.Clock(left)</b></span>
+                        </div>
+                    }
+                    <div class="pdp-price">
+                        <span class="now">@Fmt.Vnd(d.Price)</span>
+                        @if (d.CompareAt is int was && was > d.Price)
+                        {
+                            <span class="was">@Fmt.Vnd(was)</span>
+                        }
+                        @if (d.Percent is int pct)
+                        {
+                            <span class="pct pct-lg">-@pct%</span>
+                        }
+                    </div>
+                </div>
+
+                <div class="pdp-rows">
+                    <div class="pdp-row">
+                        <span class="row-ic tone-fresh">@ShopIcons.Svg("bike", 20)</span>
+                        <div class="row-text">
+                            <p class="ship-title">Giao nhanh 24 phút</p>
+                            <p class="muted">Dự kiến giao <span class="tabular strong">@Fmt.Time(etaFrom) – @Fmt.Time(etaTo)</span></p>
+                            <p class="muted small">Miễn phí giao hàng cho đơn từ @Fmt.Vnd(DeliveryService.FreeShippingFrom)</p>
+                        </div>
+                    </div>
+                    <div class="pdp-row">
+                        <span class="row-ic tone-brand">@ShopIcons.Svg("store", 20)</span>
+                        <div class="row-text">
+                            @if (Model.Store is { } store)
+                            {
+                                @if (store.Status != StoreStatus.Active)
+                                {
+                                    @Tones.Badge("warning", "Cửa hàng tạm ngưng phục vụ")
+                                }
+                                else
+                                {
+                                    @Tones.Badge(StockTone(Model.StockState), StockLabel(Model.StockState))
+                                }
+                                <p class="muted mt-1">tại cửa hàng <span class="strong">@store.Code – @store.Name</span></p>
+                            }
+                            else
+                            {
+                                @Tones.Badge("warning", "Cửa hàng tạm ngưng phục vụ")
+                            }
+                        </div>
+                        <a class="link small nowrap" href="@ShopUrls.Stores">Đổi cửa hàng</a>
+                    </div>
+                </div>
+
+                @if (p.AgeRestricted)
+                {
+                    <p class="age-note"><span class="age-pill">18+</span> Sản phẩm giới hạn độ tuổi. Bạn sẽ được yêu cầu xác nhận đã đủ 18 tuổi khi thêm vào giỏ.</p>
+                }
+
+                <form method="post" asp-controller="Cart" asp-action="Add" class="buy-box" data-age-gate="@ageGate">
+                    <input type="hidden" name="productId" value="@p.Id" />
+                    <input type="hidden" name="returnUrl" value="@url" />
+                    <input type="hidden" name="ageConfirmed" value="false" />
+                    <div class="stepper stepper-lg">
+                        <button type="button" data-qty-dec aria-label="Giảm số lượng" disabled>@ShopIcons.Svg("minus", 16)</button>
+                        <input type="number" name="quantity" value="1" min="1" max="@Model.Max" inputmode="numeric" data-qty-input aria-label="Số lượng" />
+                        <button type="button" data-qty-inc class="inc" aria-label="Tăng số lượng">@ShopIcons.Svg("plus", 16)</button>
+                    </div>
+                    @if (Model.Blocker is string blocker)
+                    {
+                        <button type="submit" class="btn btn-xl buy-btn blocked" disabled>@blocker</button>
+                    }
+                    else
+                    {
+                        <button type="submit" class="btn btn-xl buy-btn">Thêm <span aria-hidden="true">·</span> <span class="tabular" data-total>@Fmt.Vnd(d.Price)</span></button>
+                    }
+                </form>
+
+                <div class="pdp-hints">
+                    <p class="hint-brand" data-bundle-hint hidden>Giá trên đã trừ quà tặng “@bundleLabel” cho 1 @p.Unit.</p>
+                    @if (Model.InCart > 0)
+                    {
+                        <p class="muted">Đã có <span class="strong">@Model.InCart</span> sản phẩm này trong giỏ · <a class="link" href="@ShopUrls.Cart">Xem giỏ hàng</a></p>
+                    }
+                    @if (Model.StockState == "low" && Model.Blocker is null)
+                    {
+                        <p class="hint-warn">Chỉ còn @Model.Available @p.Unit tại cửa hàng, đặt sớm để giữ hàng.</p>
+                    }
+                    <p class="hint-xs">@ShopIcons.Svg("shield-check", 16, "text-brand") Hàng được kiểm tra hạn dùng tại cửa hàng trước khi giao.</p>
+                </div>
+            </div>
+
+            @if (Model.Offers.Count > 0)
+            {
+                <section class="ring-box offers">
+                    <h2 class="offers-title">Ưu đãi áp dụng</h2>
+                    <ul>
+                        @foreach (var o in Model.Offers)
+                        {
+                            <li>
+                                <span class="offer-ic offer-@o.Tone">@ShopIcons.Svg(o.Icon, 16)</span>
+                                <div class="min-w-0 flex-1">
+                                    <p class="offer-title">
+                                        @if (o.Code is string code)
+                                        {
+                                            <text>Nhập mã <span class="mono strong">@code</span></text>
+                                        }
+                                        else
+                                        {
+                                            @o.Title
+                                        }
+                                    </p>
+                                    <p class="muted">@o.Detail</p>
+                                </div>
+                                @if (o.ActionLabel is string actionLabel)
+                                {
+                                    <a class="link small nowrap" href="@o.ActionHref">@actionLabel</a>
+                                }
+                            </li>
+                        }
+                    </ul>
+                </section>
+            }
+
+            <section>
+                <h2 class="facts-title">Thông tin sản phẩm</h2>
+                <dl class="facts ring-box">
+                    <div><dt>Mã vạch</dt><dd class="mono">@p.Barcode</dd></div>
+                    <div><dt>SKU</dt><dd class="mono">@p.Sku</dd></div>
+                    <div><dt>Thương hiệu</dt><dd>@p.Brand</dd></div>
+                    <div><dt>Xuất xứ</dt><dd>@p.Origin</dd></div>
+                    <div><dt>Đơn vị</dt><dd>@p.Unit</dd></div>
+                    @if (p.ShelfLifeDays is int days && days > 0)
+                    {
+                        <div><dt>Hạn dùng</dt><dd>@ShelfLife(days)</dd></div>
+                    }
+                    @if (Model.Category is { } c2)
+                    {
+                        <div>
+                            <dt>Danh mục</dt>
+                            <dd>
+                                <a class="link-plain" href="@ShopUrls.Category(c2.Slug)">@c2.Name</a>@if (Model.Subcategory is { } s2)
+                                {
+                                    <text> / </text><a class="link-plain" href="@ShopUrls.Category(c2.Slug, s2.Slug)">@s2.Name</a>
+                                }
+                            </dd>
+                        </div>
+                    }
+                </dl>
+            </section>
+        </div>
+    </div>
+
+    @if (Model.Related.Count > 0)
+    {
+        <section>
+            <div class="sec-head">
+                <h2>
+                    @if (Model.Category is { } c3)
+                    {
+                        <a href="@ShopUrls.Category(c3.Slug, Model.Subcategory?.Slug)">Sản phẩm cùng loại</a>
+                    }
+                    else
+                    {
+                        <text>Sản phẩm cùng loại</text>
+                    }
+                </h2>
+                @if (Model.Category is { } c4)
+                {
+                    <a class="sec-all" href="@ShopUrls.Category(c4.Slug, Model.Subcategory?.Slug)">Xem tất cả @ShopIcons.Svg("chevron-right", 16)</a>
+                }
+            </div>
+            <partial name="_ProductRail" model="Model.Related" />
+        </section>
+    }
+
+    <div class="buy-bar">
+        <form method="post" asp-controller="Cart" asp-action="Add" class="buy-bar-in" data-age-gate="@ageGate">
+            <input type="hidden" name="productId" value="@p.Id" />
+            <input type="hidden" name="returnUrl" value="@url" />
+            <input type="hidden" name="ageConfirmed" value="false" />
+            <div class="stepper stepper-lg">
+                <button type="button" data-qty-dec aria-label="Giảm số lượng" disabled>@ShopIcons.Svg("minus", 16)</button>
+                <input type="number" name="quantity" value="1" min="1" max="@Model.Max" inputmode="numeric" data-qty-input aria-label="Số lượng" />
+                <button type="button" data-qty-inc class="inc" aria-label="Tăng số lượng">@ShopIcons.Svg("plus", 16)</button>
+            </div>
+            @if (Model.Blocker is string blocker2)
+            {
+                <button type="submit" class="btn btn-lg buy-btn blocked" disabled>@blocker2</button>
+            }
+            else
+            {
+                <button type="submit" class="btn btn-lg buy-btn">Thêm <span aria-hidden="true">·</span> <span class="tabular" data-total>@Fmt.Vnd(d.Price)</span></button>
+            }
+        </form>
+    </div>
+</div>
+
+@if (Model.AskAge)
+{
+    @* Trình duyệt tắt JavaScript: máy chủ mở sẵn hộp thoại xác nhận tuổi. *@
+    <dialog class="modal static-open" open data-open-on-load="true" aria-labelledby="age-static-title">
+        <form method="post" asp-controller="Cart" asp-action="Add" class="modal-body">
+            <input type="hidden" name="productId" value="@p.Id" />
+            <input type="hidden" name="quantity" value="@Model.AskAgeQuantity" />
+            <input type="hidden" name="returnUrl" value="@url" />
+            <input type="hidden" name="ageConfirmed" value="true" />
+            <h2 class="modal-title" id="age-static-title">Sản phẩm giới hạn độ tuổi</h2>
+            <p class="modal-desc">Đồ uống có cồn chỉ bán cho khách từ đủ 18 tuổi trở lên. Nhân viên giao hàng có thể kiểm tra giấy tờ tuỳ thân khi nhận hàng.</p>
+            <div class="modal-foot">
+                <a class="btn btn-outline" href="@url" data-close>Để sau</a>
+                <button type="submit" class="btn">Tôi đã đủ 18 tuổi</button>
+            </div>
+        </form>
+    </dialog>
+}

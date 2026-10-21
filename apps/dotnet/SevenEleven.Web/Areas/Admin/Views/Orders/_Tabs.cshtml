@@ -1,0 +1,5 @@
+@model string
+<nav class="seg" aria-label="Kiểu xem đơn">
+    <a asp-action="Index" class="@(Model == "board" ? "active" : null)">Đơn online đang xử lý</a>
+    <a asp-action="Index" asp-route-view="list" class="@(Model == "list" ? "active" : null)">Tất cả đơn</a>
+</nav>

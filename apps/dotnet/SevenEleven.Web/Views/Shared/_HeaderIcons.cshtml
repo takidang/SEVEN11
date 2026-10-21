@@ -1,0 +1,41 @@
+@using SevenEleven.Core.Services
+@using SevenEleven.Web.Infrastructure
+@inject ShopContext Shop
+@{
+    var customer = Shop.Customer;
+    var count = Shop.CartCount;
+}
+<a class="round-btn" href="@ShopUrls.Cart" data-cart-link aria-label="@(count > 0 ? $"Giỏ hàng, {count} sản phẩm" : "Giỏ hàng")">
+    @ShopIcons.Svg("shopping-bag", 20)
+    <span class="cart-badge" data-cart-count hidden="@(count <= 0)">@(count > 99 ? "99+" : count.ToString())</span>
+</a>
+@if (customer is null)
+{
+    <a class="round-btn" href="@ShopUrls.SignIn" aria-label="Đăng nhập">@ShopIcons.Svg("user", 20)</a>
+}
+else
+{
+    var tier = MembershipService.Info(customer.Tier);
+    <details class="acct" data-dropdown>
+        <summary class="acct-btn" aria-label="Tài khoản của @customer.FullName">
+            <span class="avatar">@Fmt.Initials(customer.FullName)</span>
+            <span class="acct-meta">
+                <span class="acct-name">@customer.FullName</span>
+                <span class="acct-sub">Hạng @tier.Label · <span class="stars">@ShopIcons.Svg("star", 12) @Fmt.Num(customer.Stars)</span></span>
+            </span>
+        </summary>
+        <div class="dropdown acct-menu">
+            <div class="dropdown-head">
+                <b class="trunc">@customer.FullName</b>
+                <span>@Fmt.Phone(customer.Phone)</span>
+            </div>
+            <a href="@ShopUrls.Account">@ShopIcons.Svg("user", 16) Tài khoản &amp; hạng thành viên</a>
+            <a href="@ShopUrls.AccountTab("sao-vang")">@ShopIcons.Svg("star", 16) Sao vàng &amp; đổi voucher</a>
+            <a href="@ShopUrls.AccountTab("don-hang")">@ShopIcons.Svg("package", 16) Đơn hàng của tôi</a>
+            <hr />
+            <form method="post" asp-controller="Account" asp-action="Logout">
+                <button type="submit" class="dd-item">@ShopIcons.Svg("log-out", 16) Đăng xuất</button>
+            </form>
+        </div>
+    </details>
+}

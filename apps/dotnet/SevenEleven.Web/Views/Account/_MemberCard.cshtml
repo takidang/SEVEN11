@@ -1,0 +1,108 @@
+@using System.Globalization
+@using SevenEleven.Core.Models
+@using SevenEleven.Core.Services
+@using SevenEleven.Web.Infrastructure
+@model (Customer Customer, KeepStatus Keep)
+@{
+    // Thẻ hạng: chi tiêu tích luỹ tới hạng kế tiếp, giữ hạng tháng này và sao vàng (member-card.tsx).
+    var c = Model.Customer;
+    var keep = Model.Keep;
+    var current = MembershipService.Info(c.Tier);
+    var upgrade = MembershipService.Next(c.Tier);
+    var order = MembershipService.Order;
+    var last = order.Length - 1;
+    var nextMonth = MembershipService.ShiftMonth(keep.Month, 1);
+    var reviewDay = Fmt.Date(MembershipService.MonthStart(nextMonth));
+    string Millions(int value) => value == 0 ? "0 ₫" : $"{(value / 1_000_000d).ToString("0.#", CultureInfo.GetCultureInfo("vi-VN"))} triệu";
+    double Ladder(int spend)
+    {
+        for (var i = 0; i < last; i++)
+        {
+            var from = MembershipService.Info(order[i]).MinSpend;
+            var to = MembershipService.Info(order[i + 1]).MinSpend;
+            if (spend < to) return (i + (spend - from) / (double)(to - from)) / last * 100;
+        }
+        return 100;
+    }
+}
+<section class="mcard">
+    <div class="mcard-face @TierStyle.Face(c.Tier)">
+        <span class="mcard-blob a" aria-hidden="true"></span>
+        <span class="mcard-blob b" aria-hidden="true"></span>
+        <div class="mcard-top">
+            <span class="mcard-chip">Thẻ thành viên</span>
+            <img class="mcard-logo" src="~/img/logo-mark.png" alt="7-Eleven" width="36" height="36" />
+        </div>
+        <div class="mcard-bottom">
+            <p class="mcard-tier">@current.Label</p>
+            <a class="mcard-stars" href="@ShopUrls.AccountTab("sao-vang")"><span class="stars">@ShopIcons.Svg("star", 14) @Fmt.Num(c.Stars)</span> sao vàng @ShopIcons.Svg("chevron-right", 16, "muted")</a>
+        </div>
+    </div>
+    <div class="mcard-body">
+        <div class="mcard-spend-row">
+            <div>
+                <p class="small muted">Chi tiêu tích luỹ xét hạng</p>
+                <p class="mcard-spend tabular">@Fmt.Vnd(c.TierSpend)</p>
+            </div>
+            <a class="link small inline-flex" href="@ShopUrls.AccountTab("hang")">Điều kiện các hạng @ShopIcons.Svg("chevron-right", 16)</a>
+        </div>
+        <div class="ladder">
+            <div class="ladder-track">
+                <div class="bar bar-brand bar-lg" role="progressbar" aria-label="Tiến độ chi tiêu tích luỹ lên hạng" aria-valuemin="0" aria-valuemax="100" aria-valuenow="@Fmt.Css(Ladder(c.TierSpend))"><span style="width:@Fmt.Css(Ladder(c.TierSpend))%"></span></div>
+                @for (var i = 1; i < last; i++)
+                {
+                    <span class="ladder-tick" style="left:@Fmt.Css(i * 100.0 / last)%" aria-hidden="true"></span>
+                }
+            </div>
+            <div class="ladder-labels">
+                @for (var i = 0; i < order.Length; i++)
+                {
+                    var info = MembershipService.Info(order[i]);
+                    var pos = i == 0 ? "first" : i == last ? "last" : "mid";
+                    <span class="ladder-label @pos @(order[i] == c.Tier ? "on" : null)" style="@(pos == "mid" ? $"left:{Fmt.Css(i * 100.0 / last)}%" : null)">@info.Label<br />@Millions(info.MinSpend)</span>
+                }
+            </div>
+        </div>
+        <p class="mcard-next">
+            @if (upgrade is not null)
+            {
+                <text>Chi tiêu thêm <b>@Fmt.Vnd(upgrade.MinSpend - c.TierSpend)</b> để lên hạng <b>@upgrade.Label</b> ngay lập tức.</text>
+            }
+            else
+            {
+                <text>Bạn đang ở hạng cao nhất, giảm <b>@Fmt.Vnd(current.DrinkVoucher)</b> mỗi ly đồ uống.</text>
+            }
+        </p>
+        @if (keep.Exempt == KeepExemption.BaseTier)
+        {
+            <p class="keep-note">@ShopIcons.Svg("shield-check", 16, "text-brand") <span>Hạng @current.Label không cần duy trì. Lên hạng rồi thì mỗi tháng cần chi tối thiểu một mức để giữ hạng.</span></p>
+        }
+        else if (keep.Exempt == KeepExemption.UpgradeMonth)
+        {
+            <p class="keep-note ink">@ShopIcons.Svg("shield-check", 16, "text-fresh") <span>Bạn vừa lên hạng @current.Label trong tháng @MembershipService.MonthLabel(keep.Month) nên tháng này không bị xét. Từ tháng @MembershipService.MonthLabel(nextMonth), chi tối thiểu <b>@Fmt.Vnd(current.KeepPerMonth)</b> mỗi tháng để giữ hạng.</span></p>
+        }
+        else
+        {
+            var done = keep.Missing == 0;
+            <div class="keep-box @(done ? "done" : "short")">
+                <div class="keep-head">
+                    <span class="strong">Giữ hạng @current.Label tháng @MembershipService.MonthLabel(keep.Month)</span>
+                    <span class="tabular muted">@Fmt.Vnd(keep.Spent) / @Fmt.Vnd(keep.Required)</span>
+                </div>
+                <div class="bar bar-thin @(done ? "bar-fresh" : "bar-orange") on-white"><span style="width:@Fmt.Css(Math.Min(100, keep.Spent * 100.0 / keep.Required))%"></span></div>
+                <p class="keep-msg">
+                    @if (done)
+                    {
+                        @ShopIcons.Svg("circle-check", 16, "text-fresh")
+                        <span>Đã đủ điều kiện giữ hạng @current.Label sau đợt xét ngày @reviewDay.</span>
+                    }
+                    else
+                    {
+                        @ShopIcons.Svg("circle-alert", 16, "text-orange")
+                        <span>Chi thêm <b>@Fmt.Vnd(keep.Missing)</b> trong @keep.DaysLeft ngày còn lại để giữ hạng @current.Label. Nếu không, từ @reviewDay bạn xuống hạng @(keep.DropTo is MemberTier drop ? MembershipService.Info(drop).Label : "").</span>
+                    }
+                </p>
+            </div>
+        }
+    </div>
+</section>

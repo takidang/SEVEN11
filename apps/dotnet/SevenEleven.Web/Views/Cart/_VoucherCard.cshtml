@@ -1,0 +1,56 @@
+@using SevenEleven.Web.Infrastructure
+@using SevenEleven.Web.Models.Shop
+@inject ShopContext Shop
+@model VoucherCardModel
+@{
+    var o = Model.Option;
+    var promo = o.Promo;
+    var stub = ShopPromos.Stub(promo);
+    var expiry = ShopPromos.Expiry(promo, Model.Now);
+    var id = "voucher-" + promo.Id;
+}
+<label class="vcard @(o.Usable ? "usable" : "locked")" for="@id">
+    <span class="vcard-stub">
+        <span class="vcard-k">Giảm</span>
+        <span class="vcard-v headline">@stub.Value</span>
+        @if (stub.Cap is string cap)
+        {
+            <span class="vcard-cap">@cap</span>
+        }
+    </span>
+    <span class="vcard-body">
+        <span class="vcard-top">
+            <span class="min-w-0 flex-1">
+                @if (Model.Best)
+                {
+                    <span class="vcard-best">@Tones.Badge("orange", "Tiết kiệm nhất")</span>
+                }
+                <span class="vcard-title">@ShopPromos.ValueText(promo)</span>
+                <span class="vcard-name">@promo.Name · Mã <span class="mono strong">@promo.Code</span></span>
+            </span>
+            <input type="radio" id="@id" name="code" value="@promo.Code" data-saving="@o.Saving" disabled="@(!o.Usable)" checked="@Model.Selected"
+                   aria-label="Chọn voucher @promo.Code" />
+        </span>
+        <span class="vcard-conds">
+            @foreach (var c in ShopPromos.Conditions(promo, Shop.Categories))
+            {
+                <span class="vcard-cond">@c</span>
+            }
+            <span class="vcard-exp @(expiry.Urgent ? "urgent" : null)">@ShopIcons.Svg("calendar-clock", 14) @expiry.Text</span>
+        </span>
+        <span class="vcard-foot">
+            @if (o.Usable)
+            {
+                <span class="ok">@ShopIcons.Svg("circle-check", 14) Đơn này được giảm @Fmt.Vnd(o.Saving)</span>
+            }
+            else
+            {
+                <span class="why">@ShopIcons.Svg("circle-alert", 14) @o.Reason</span>
+                @if (o.Progress is double progress)
+                {
+                    <span class="bar bar-orange bar-thin"><span style="width:@Fmt.Css(progress * 100)%"></span></span>
+                }
+            }
+        </span>
+    </span>
+</label>

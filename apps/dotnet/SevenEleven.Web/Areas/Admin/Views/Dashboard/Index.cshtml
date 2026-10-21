@@ -1,0 +1,318 @@
+@using SevenEleven.Web.Areas.Admin.Controllers
+@model DashboardModel
+@{
+    var scopeStore = ViewBag.ScopeStore as Store;
+    var t = Model.Today;
+    var y = Model.Yesterday;
+    var revenueChart = Charts.Columns(
+        "Doanh thu 30 ngày qua theo ngày",
+        Model.Daily.Select(d => new ChartBar(
+            d.Date.ToString("dd/MM"),
+            d.Revenue,
+            $"{TimeText.WeekdayShort(d.Date)} {d.Date:dd/MM} · {Money.Format(d.Revenue)} · {Money.FormatNumber(d.Orders)} đơn",
+            d.Date == Model.Now.Date)).ToList(),
+        v => Money.FormatCompact((long)v),
+        labelEvery: 5);
+    var hourNow = Model.Now.Hour;
+    var hourLines = Charts.Lines(
+        "Doanh thu hôm nay theo giờ so với trung bình 7 ngày trước",
+        Enumerable.Range(0, 24).Select(h => $"{h}h").ToList(),
+        [
+            new LineSeries("Hôm nay", "s1", Model.Hourly.Select((v, h) => h <= hourNow ? (double?)v : null).ToArray()),
+            new LineSeries("Trung bình 7 ngày trước", "s2", Model.HourlyAverage.Select(v => (double?)v).ToArray()),
+        ],
+        Enumerable.Range(0, 24).Select(h =>
+            $"{h:00}:00 – {h:00}:59{(h == hourNow ? $" (đến {Model.Now:HH:mm})" : "")} · Hôm nay: {(h > hourNow ? "Chưa đến giờ" : Money.Format(Model.Hourly[h]))} · TB 7 ngày trước: {Money.Format((long)Math.Round(Model.HourlyAverage[h], MidpointRounding.AwayFromZero))}").ToList(),
+        v => Money.FormatCompact((long)v),
+        labelEvery: 3,
+        highlight: hourNow);
+    var peakHour = Enumerable.Range(0, hourNow + 1).Where(h => Model.Hourly[h] > 0).OrderByDescending(h => Model.Hourly[h]).Cast<int?>().FirstOrDefault();
+    var budgetTotal = Model.Budget.Sum(b => b.Budget);
+    var budgetSpent = Model.Budget.Sum(b => b.Spent);
+    var losing = Model.Stores.Where(s => s.NetProfit < 0 && s.Sales.Store.Status != StoreStatus.Closed).ToList();
+    // Số mục đang cần xử lý (không cộng dồn các con số khác loại với nhau).
+    var attention = new[] { Model.PendingOnline > 0, Model.StockOut > 0, Model.BatchesExpired > 0, Model.PurchasesLate > 0, losing.Count > 0 }.Count(x => x);
+    var storeBars = new HBarList(Model.WeekStores.Select(s => new HBar(
+        $"{s.Sales.Store.Code} · {s.Sales.Store.Name}",
+        $"{Money.FormatNumber(s.Sales.Orders)} đơn · TB/đơn {Money.Format(s.Sales.Aov)}" + (s.Sales.Store.Status == StoreStatus.Active ? "" : $" · {Labels.Store(s.Sales.Store.Status)}"),
+        s.Sales.Revenue,
+        Money.FormatCompact(s.Sales.Revenue) + " ₫")).ToList());
+    var weekOrders = Model.Channels.Sum(c => c.Orders);
+    var weekRevenue = Model.Channels.Sum(c => c.Revenue);
+}
+@functions {
+    static IHtmlContent Delta(double? change, string vs)
+    {
+        if (change is not double c) return new HtmlString($"<span class=\"delta\">{vs}: chưa có số để so</span>");
+        var cls = c >= 0 ? "up" : "down";
+        return new HtmlString($"<span class=\"delta {cls}\">{(c >= 0 ? "▲" : "▼")} {Money.Change(c)}</span> <span class=\"delta\">{vs}</span>");
+    }
+}
+
+<div class="page-head">
+    <div>
+        <h1>Tổng quan</h1>
+        <p>@(scopeStore is null ? "Toàn chuỗi" : $"Cửa hàng {scopeStore.Code} – {scopeStore.Name}") · @TimeText.Weekday(Model.Now), @Model.Now.ToString("dd/MM/yyyy")</p>
+    </div>
+    <div class="page-actions">
+        <a class="btn" asp-controller="Reports" asp-action="Index">@Icons.Svg("reports", 16) Xem báo cáo</a>
+    </div>
+</div>
+
+<div class="kpis">
+    <div class="kpi">
+        <span class="kpi-label">Doanh thu hôm nay</span>
+        <b class="kpi-value">@Money.Format(t.Revenue)</b>
+        <span class="kpi-sub">@Delta(Periods.Change(t.Revenue, y.Revenue), "so với cùng giờ hôm qua")</span>
+    </div>
+    <div class="kpi">
+        <span class="kpi-label">Số đơn hôm nay</span>
+        <b class="kpi-value">@Money.FormatNumber(t.Orders)</b>
+        <span class="kpi-sub">@Delta(Periods.Change(t.Orders, y.Orders), "so với cùng giờ hôm qua")</span>
+    </div>
+    <div class="kpi">
+        <span class="kpi-label">Giá trị trung bình / đơn</span>
+        <b class="kpi-value">@Money.Format(t.Aov)</b>
+        <span class="kpi-sub">Lãi gộp hôm nay @Money.Format(t.GrossProfit) · biên @Money.Percent(t.Margin)</span>
+    </div>
+    <a class="kpi @(Model.PendingOnline > 0 ? "kpi-warn" : null)" asp-controller="Orders" asp-action="Index">
+        <span class="kpi-label">Đơn online chờ xác nhận</span>
+        <b class="kpi-value">@Model.PendingOnline</b>
+        <span class="kpi-sub">@(Model.OldestPending is DateTime oldest ? $"Đơn chờ lâu nhất: {TimeText.Relative(oldest, Model.Now)}" : "Không có đơn nào đang chờ")</span>
+    </a>
+    <div class="kpi">
+        <span class="kpi-label">Vốn tồn kho</span>
+        <b class="kpi-value">@Money.FormatCompact(Model.InventoryCost) ₫</b>
+        <span class="kpi-sub">Giá vốn của hàng đang nằm trên kệ@(Model.IsChain ? " cả chuỗi" : "")</span>
+    </div>
+</div>
+
+<div class="grid">
+    <section class="panel span-8">
+        <div class="panel-head">
+            <div>
+                <h2>Doanh thu 30 ngày</h2>
+                <p>@Money.Format(Model.Month.Revenue) · @Money.FormatNumber(Model.Month.Orders) đơn · lãi gộp @Money.Percent(Model.Month.Margin)</p>
+            </div>
+        </div>
+        <partial name="_ColumnChart" model="revenueChart" />
+    </section>
+
+    <section class="panel span-4">
+        <div class="panel-head"><h2>Cần chú ý</h2><span class="count-pill @(attention > 0 ? "warn" : "ok")">@(attention > 0 ? $"{attention} mục cần xử lý" : "Mọi thứ ổn")</span></div>
+        <ul class="attention">
+            <li class="@(Model.PendingOnline > 0 ? "warn" : null)">
+                @Icons.Svg("orders", 16)
+                <a asp-controller="Orders" asp-action="Index"><b>@Model.PendingOnline đơn online</b> chờ xác nhận</a>
+            </li>
+            <li class="@(Model.StockOut > 0 ? "danger" : Model.StockLow > 0 ? "warn" : null)">
+                @Icons.Svg("stock", 16)
+                <span>
+                    <a asp-controller="Stock" asp-action="Index" asp-route-state="out"><b>@Model.StockOut</b> hết hàng</a> ·
+                    <a asp-controller="Stock" asp-action="Index" asp-route-state="low"><b>@Model.StockLow</b> sắp hết</a>
+                    @if (Model.IsChain)
+                    {
+                        <small>Tính theo từng cửa hàng</small>
+                    }
+                </span>
+            </li>
+            <li class="@(Model.BatchesExpired > 0 ? "danger" : Model.BatchesExpiring > 0 ? "warn" : null)">
+                @Icons.Svg("clock", 16)
+                <a asp-controller="Stock" asp-action="Batches" asp-route-state="expiring">
+                    <b>@Model.BatchesExpiring lô</b> hết hạn trong 24 giờ@(Model.BatchesExpired > 0 ? $", {Model.BatchesExpired} lô đã quá hạn" : "")
+                </a>
+            </li>
+            <li class="@(Model.PurchasesLate > 0 ? "warn" : null)">
+                @Icons.Svg("purchasing", 16)
+                <a asp-controller="Purchasing" asp-action="Index" asp-route-status="Ordered">
+                    <b>@Model.PurchasesAwaiting phiếu nhập</b> chờ nhận hàng@(Model.PurchasesLate > 0 ? $", {Model.PurchasesLate} phiếu trễ hẹn" : "")
+                </a>
+            </li>
+            @if (Model.IsChain)
+            {
+                <li class="@(losing.Count > 0 ? "danger" : "ok")">
+                    @Icons.Svg("reports", 16)
+                    @if (losing.Count == 0)
+                    {
+                        <span>Không cửa hàng nào lỗ trong 30 ngày qua</span>
+                    }
+                    else
+                    {
+                        <span>
+                            <a asp-controller="Reports" asp-action="Index" asp-route-tab="cua-hang"><b>@losing.Count cửa hàng đang lỗ</b> (30 ngày)</a>
+                            @foreach (var s in losing)
+                            {
+                                <small>@s.Sales.Store.Code – @s.Sales.Store.Name: @Money.Signed(s.NetProfit)</small>
+                            }
+                        </span>
+                    }
+                </li>
+            }
+        </ul>
+    </section>
+
+    <section class="panel span-8">
+        <div class="panel-head">
+            <div>
+                <h2>Doanh thu theo giờ</h2>
+                <p>Hôm nay so với trung bình cùng giờ của 7 ngày trước</p>
+            </div>
+        </div>
+        <div class="legend" style="justify-content:space-between;margin-bottom:4px">
+            <span style="display:flex;gap:6px 16px;flex-wrap:wrap">
+                <span class="key">Hôm nay (đến @Model.Now.ToString("HH:mm"))</span>
+                <span class="key dash" style="--key:var(--orange)">Trung bình 7 ngày trước</span>
+            </span>
+            @if (peakHour is int peak)
+            {
+                <span>Cao điểm hôm nay: <b>@peak.ToString("00"):00 · @Money.Format(Model.Hourly[peak])</b></span>
+            }
+        </div>
+        <partial name="_LineChart" model="hourLines" />
+    </section>
+
+    <section class="panel span-4">
+        <div class="panel-head"><div><h2>Kênh bán (7 ngày)</h2><p>Tỷ trọng tại quầy và online, hôm nay tính đến hiện tại</p></div></div>
+        @if (weekOrders == 0)
+        {
+            <p class="empty">Chưa có đơn hàng trong 7 ngày qua.</p>
+        }
+        else
+        {
+            <div style="display:grid;gap:18px">
+                @foreach (var (label, total, share, describe) in new (string, string, Func<ChannelShare, double>, Func<ChannelShare, string>)[]
+                {
+                    ("Doanh thu", Money.Format(weekRevenue), c => c.RevenueShare, c => $"{Money.Percent(c.RevenueShare)} · {Money.Format(c.Revenue)}"),
+                    ("Số đơn", $"{Money.FormatNumber(weekOrders)} đơn", c => c.OrderShare, c => $"{Money.Percent(c.OrderShare)} · {Money.FormatNumber(c.Orders)} đơn"),
+                })
+                {
+                    <div class="share">
+                        <div class="share-head"><span>@label</span><b>@total</b></div>
+                        <div class="share-bar">
+                            @foreach (var c in Model.Channels.Where(c => share(c) > 0))
+                            {
+                                <span class="ch-@c.Channel" style="width:@((share(c) * 100).ToString("0.##", System.Globalization.CultureInfo.InvariantCulture))%" title="@Labels.Channel(c.Channel): @describe(c)"></span>
+                            }
+                        </div>
+                        <div class="share-foot">
+                            @foreach (var c in Model.Channels)
+                            {
+                                <span>@Labels.Channel(c.Channel) @describe(c)</span>
+                            }
+                        </div>
+                    </div>
+                }
+                <table class="table compact">
+                    <caption class="sr-only">Doanh thu và số đơn theo kênh bán, 7 ngày</caption>
+                    <thead><tr><th>Kênh</th><th class="num">Doanh thu</th><th class="num">Số đơn</th><th class="num">TB/đơn</th></tr></thead>
+                    <tbody>
+                        @foreach (var c in Model.Channels)
+                        {
+                            <tr>
+                                <th scope="row"><span class="legend"><span class="key dot ch-@c.Channel" style="color:var(--fg)">@Labels.Channel(c.Channel)</span></span></th>
+                                <td class="num">@Money.Format(c.Revenue)</td>
+                                <td class="num">@Money.FormatNumber(c.Orders)</td>
+                                <td class="num">@Money.Format(c.Aov)</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </section>
+
+    @if (Model.IsChain)
+    {
+        <section class="panel span-6">
+            <div class="panel-head"><div><h2>Doanh thu theo cửa hàng (7 ngày)</h2><p>Từ cao đến thấp, hôm nay tính đến hiện tại</p></div></div>
+            <partial name="_HBars" model="storeBars" />
+        </section>
+    }
+
+    <section class="panel @(Model.IsChain ? "span-6" : "span-12")">
+        <div class="panel-head"><div><h2>Top sản phẩm bán chạy (7 ngày)</h2><p>Xếp theo số lượng bán</p></div></div>
+        @if (Model.WeekProducts.Count == 0)
+        {
+            <p class="empty">Chưa bán được sản phẩm nào trong 7 ngày qua.</p>
+        }
+        else
+        {
+            var chunks = Model.IsChain ? [Model.WeekProducts] : new[] { Model.WeekProducts.Take(4).ToList(), Model.WeekProducts.Skip(4).ToList() };
+            <div class="@(Model.IsChain ? null : "rank-cols")">
+                @foreach (var chunk in chunks)
+                {
+                    <ol class="rank-list">
+                        @foreach (var row in chunk)
+                        {
+                            var rank = Model.WeekProducts.IndexOf(row) + 1;
+                            <li>
+                                <span class="rank @(rank <= 3 ? "top" : null)">@rank</span>
+                                <img src="@row.Product.Image" alt="" loading="lazy" />
+                                <span class="grow"><b title="@row.Product.Name">@row.Product.Name</b><small>@(Model.CategoryNames.GetValueOrDefault(row.Product.CategoryId) ?? row.Product.Sku)</small></span>
+                                <span class="end"><b>@Money.FormatNumber(row.Quantity)</b> <small>@row.Product.Unit</small><small style="display:block">@Money.Format(row.Revenue)</small></span>
+                            </li>
+                        }
+                    </ol>
+                }
+            </div>
+        }
+    </section>
+
+    <section class="panel span-8 flush">
+        <div class="panel-head pad">
+            <div><h2>Đơn online đang xử lý</h2><p>@(Model.LiveCount > 0 ? $"{Money.FormatNumber(Model.LiveCount)} đơn chưa hoàn thành, mới nhất trước" : "Mới nhất trước")</p></div>
+            <a class="link" asp-controller="Orders" asp-action="Index">Xem tất cả →</a>
+        </div>
+        @if (Model.LiveOrders.Count == 0)
+        {
+            <p class="empty">Không có đơn online nào đang xử lý.</p>
+        }
+        else
+        {
+            <ul class="live-list">
+                @foreach (var o in Model.LiveOrders)
+                {
+                    var who = o.Customer?.FullName ?? o.Delivery?.Recipient ?? "Khách lẻ";
+                    var meta = Model.IsChain ? $"CH {o.Store?.Code} · {who}" : who;
+                    <li>
+                        <a asp-controller="Orders" asp-action="Detail" asp-route-id="@o.Code">
+                            <span class="code">@o.Code</span>
+                            <span class="meta">@meta</span>
+                            <span class="when">@TimeText.Relative(o.CreatedAt, Model.Now)</span>
+                            <span class="st"><span class="badge @Labels.Tone(o.Status)">@Labels.Status(o.Status)</span></span>
+                            <span class="num">@Money.Format(o.Total)</span>
+                        </a>
+                    </li>
+                }
+            </ul>
+        }
+    </section>
+
+    <section class="panel span-4">
+        <div class="panel-head">
+            <div>
+                <h2>Ngân sách tháng @Model.Now.ToString("MM/yyyy")</h2>
+                <p>Đã chi @Money.FormatCompact(budgetSpent) / @Money.FormatCompact(budgetTotal) ₫@(Model.IsChain ? "" : " (phần của cửa hàng)")</p>
+            </div>
+        </div>
+        <ul class="budget">
+            @foreach (var b in Model.Budget)
+            {
+                var pct = Math.Min(100, b.Used * 100).ToString("0.#", System.Globalization.CultureInfo.InvariantCulture);
+                <li title="@b.Note">
+                    <div class="budget-row"><span>@b.Label</span><b class="@(b.Used > 1 ? "neg" : null)">@Money.Percent(b.Used)</b></div>
+                    <div class="meter"><div class="@(b.Used > 1 ? "over" : null)" style="width:@pct%"></div></div>
+                    <small>@Money.FormatCompact(b.Spent) / @Money.FormatCompact(b.Budget) ₫</small>
+                </li>
+            }
+        </ul>
+        <div class="capital">
+            <h3>Vốn điều lệ @Money.FormatCompact(Model.Capital.Capital) ₫ đang nằm ở</h3>
+            @foreach (var (label, value) in new[] { ("Tài sản cố định", Model.Capital.FixedAssets), ("Hàng trong kho", Model.Capital.Inventory), ("Tiền mặt", Model.Capital.Cash) })
+            {
+                <div class="budget-row"><span>@label</span><b>@Money.FormatCompact(value) ₫ <small>(@Money.Percent((double)value / Model.Capital.Capital))</small></b></div>
+            }
+        </div>
+    </section>
+
+</div>

@@ -1,0 +1,162 @@
+@using SevenEleven.Web.Areas.Admin.Controllers
+@model PosModel
+@{
+    var staff = ViewBag.Staff as StaffUser;
+    int pending = ViewBag.PendingCount ?? 0;
+    var shift = Model.Shift;
+    ViewData["BodyClass"] = "pos-page";
+}
+<div class="page-head pos-head">
+    <div>
+        <h1>Bán tại quầy</h1>
+        <p>Cửa hàng @Model.Store.Code – @Model.Store.Name · thu ngân @staff?.Name</p>
+    </div>
+    <div class="page-actions">
+        <span class="pos-clock tabular" data-clock title="Giờ hiện tại">@Model.Now.ToString("HH:mm")</span>
+        @if (shift?.Current is { } current && shift.Summary is { } sum)
+        {
+            <details class="pop-wrap">
+                <summary class="btn shift-chip on"><span class="pulse" aria-hidden="true"></span>@ShiftService.Label(current.Type)<span class="muted wide-only">· vào lúc @current.CheckInAt?.ToString("HH:mm")</span></summary>
+                <div class="pop">
+                    <div class="pop-head">
+                        <b>@ShiftService.Label(current.Type) · @ShiftService.Time(current.Type)</b>
+                        <small>Lịch ngày @current.Date.ToString("dd/MM/yyyy") · vào ca lúc @current.CheckInAt?.ToString("HH:mm dd/MM/yyyy")</small>
+                    </div>
+                    <dl class="pop-kv">
+                        <dt>Đơn đã bán trong ca</dt><dd>@sum.Orders</dd>
+                        <dt>Tiền đầu ca</dt><dd>@Money.Format(sum.OpeningCash)</dd>
+                        <dt>Thu tiền mặt</dt><dd>@Money.Format(sum.Cash)</dd>
+                        <dt>Thẻ, ví, chuyển khoản</dt><dd>@Money.Format(sum.NonCash)</dd>
+                        <dt class="total">Tiền mặt dự kiến trong két</dt><dd class="total">@Money.Format(sum.Expected)</dd>
+                    </dl>
+                    <div class="pop-foot"><button class="btn btn-block" type="button" data-open-dialog="checkout-dialog">@Icons.Svg("logout", 16) Kết ca</button></div>
+                </div>
+            </details>
+            <dialog id="checkout-dialog" class="modal" aria-labelledby="checkout-title">
+                <form method="post" asp-action="ShiftOut" class="modal-body" data-shift-out data-expected="@sum.Expected">
+                    <h2 id="checkout-title">Kết ca</h2>
+                    <p class="muted">Đếm tiền mặt trong két và ghi chú nếu có chênh lệch.</p>
+                    <label class="field"><span>Tiền mặt đếm được</span>
+                        <input class="input input-lg tabular" name="closingCash" inputmode="numeric" autocomplete="off" data-money value="@Money.FormatNumber(sum.Expected)" autofocus />
+                    </label>
+                    <p class="cell-sub" style="margin:0">Dự kiến @Money.Format(sum.Expected) <span data-shift-diff></span></p>
+                    <label class="field"><span>Ghi chú</span>
+                        <textarea class="input" name="note" rows="2" maxlength="200" placeholder="Ví dụ: đã nộp 3.000.000 ₫ cho quản lý"></textarea>
+                    </label>
+                    <div class="modal-actions">
+                        <button class="btn" type="button" data-close-dialog>Huỷ</button>
+                        <button class="btn btn-primary" type="submit">@Icons.Svg("logout", 16) Kết ca</button>
+                    </div>
+                </form>
+            </dialog>
+        }
+        else if (shift?.Slot is { } slot)
+        {
+            <button class="btn shift-chip off" type="button" data-open-dialog="checkin-dialog">@Icons.Svg("clock", 16) Chưa vào ca <span class="chip-action">Vào ca</span></button>
+            <dialog id="checkin-dialog" class="modal" aria-labelledby="checkin-title">
+                <form method="post" asp-action="ShiftIn" class="modal-body">
+                    <h2 id="checkin-title">Vào ca làm việc</h2>
+                    <p class="muted">Đếm tiền trong két trước khi bắt đầu bán. Số tiền này dùng để đối chiếu khi kết ca.</p>
+                    <dl class="pop-kv boxed">
+                        <dt>Nhân viên</dt><dd>@staff?.Name</dd>
+                        <dt>Cửa hàng</dt><dd>@Model.Store.Code – @Model.Store.Name</dd>
+                        <dt>Ca làm</dt>
+                        <dd>
+                            @ShiftService.Label(slot.Type) · @ShiftService.Time(slot.Type)
+                            <small>@(slot.Scheduled ? $"Theo lịch ngày {slot.Date:dd/MM/yyyy}" : "Chưa có lịch — hệ thống sẽ tạo ca mới")</small>
+                        </dd>
+                    </dl>
+                    <label class="field"><span>Tiền đầu ca trong két</span>
+                        <input class="input input-lg tabular" name="openingCash" inputmode="numeric" autocomplete="off" data-money value="@Money.FormatNumber(ShiftService.DefaultOpeningCash)" autofocus />
+                    </label>
+                    <div class="modal-actions">
+                        <button class="btn" type="button" data-close-dialog>Để sau</button>
+                        <button class="btn btn-primary" type="submit">Vào ca</button>
+                    </div>
+                </form>
+            </dialog>
+        }
+        <a class="btn" asp-controller="Orders" asp-action="Index">@Icons.Svg("orders", 16) <span>Đơn online</span>@if (pending > 0) { <span class="nav-count">@pending</span> }</a>
+        @if (staff?.IsAdmin == true)
+        {
+            <form method="post" asp-action="PickStore" class="no-print">
+                <input type="hidden" name="storeId" value="" />
+                <button class="btn" type="submit">Đổi cửa hàng</button>
+            </form>
+        }
+    </div>
+</div>
+
+@if (Model.Store.Status != StoreStatus.Active)
+{
+    <div class="flash flash-warn">@Icons.Svg("alert", 16) Cửa hàng @Model.Store.Code đang @Labels.Store(Model.Store.Status).ToLowerInvariant(), không thể bán hàng.</div>
+}
+
+<div class="pos">
+    <section class="pos-products">
+        <div class="panel" style="display:grid;gap:12px">
+            <form method="post" asp-action="Scan" class="toolbar">
+                <label class="search-box grow">
+                    @Icons.Svg("search", 16)
+                    <input class="input" name="q" value="@Model.Query" placeholder="Quét mã vạch, nhập SKU hoặc tên sản phẩm" aria-label="Quét mã vạch hoặc tìm sản phẩm" autofocus autocomplete="off" style="width:100%" data-pos-search />
+                    <kbd class="kbd">F2</kbd>
+                </label>
+                <button class="btn" type="submit">Tìm</button>
+            </form>
+            <div class="chips">
+                <a class="chip @(Model.Query is null && Model.Category is null ? "active" : null)" asp-action="Index">Bán chạy</a>
+                @foreach (var c in Model.Categories)
+                {
+                    <a class="chip @(Model.Category == c.Id ? "active" : null)" asp-action="Index" asp-route-cat="@c.Id">@c.Name</a>
+                }
+            </div>
+        </div>
+
+        <div class="panel-head" style="margin:0"><h2>@Model.Heading</h2><span class="result-count">@Model.Products.Count sản phẩm</span></div>
+        @if (Model.Products.Count == 0)
+        {
+            <div class="panel"><p class="empty">Không tìm thấy sản phẩm phù hợp. Thử tên khác hoặc quét lại mã vạch.</p></div>
+        }
+        <div class="tiles">
+            @foreach (var p in Model.Products)
+            {
+                var qty = Model.Stock.GetValueOrDefault(p.Id)?.Quantity ?? 0;
+                var min = Model.Stock.GetValueOrDefault(p.Id)?.MinQuantity ?? 0;
+                var state = InventoryService.StateOf(qty, min);
+                var flash = PricingService.FlashSaleFor(p, Model.Promotions, Model.Now, SalesChannel.InStore);
+                var price = flash is null ? p.Price : PricingService.FlashPrice(p.Price, flash.Value);
+                var buyGet = Model.BuyGet.GetValueOrDefault(p.Id);
+                <form method="post" asp-action="Add" data-fetch="#bill" class="tile @(state == StockState.Out ? "sold-out" : null)" title="@p.Name · @p.Barcode">
+                    <input type="hidden" name="productId" value="@p.Id" />
+                    @if (p.AgeRestricted || p.Category?.AgeRestricted == true)
+                    {
+                        <span class="age">18+</span>
+                    }
+                    @if (flash is not null)
+                    {
+                        <span class="flash-tag">-@flash.Value%</span>
+                    }
+                    <img src="@p.Image" alt="" loading="lazy" />
+                    <span class="tile-name">@p.Name</span>
+                    @if (buyGet is not null)
+                    {
+                        <span class="promo">Mua @buyGet.BuyQuantity tặng @buyGet.GetQuantity</span>
+                    }
+                    <span class="tile-price">@Money.Format(price)@if (price < p.Price) { <s>@Money.Format(p.Price)</s> }</span>
+                    <span class="tile-stock @(state == StockState.Out ? "out" : state == StockState.Low ? "low" : null)">
+                        @(state == StockState.Out ? "Hết hàng" : $"Còn {qty} {p.Unit}")
+                    </span>
+                    <button class="btn btn-sm" type="submit" disabled="@(state == StockState.Out)">@Icons.Svg("plus", 14) Thêm</button>
+                </form>
+            }
+        </div>
+        <p class="shortcuts no-print" aria-label="Phím tắt">
+            <span><kbd class="kbd">F2</kbd> Tìm / quét</span>
+            <span><kbd class="kbd">F4</kbd> Khách hàng</span>
+            <span><kbd class="kbd">F9</kbd> Thanh toán</span>
+            <span><kbd class="kbd">Esc</kbd> Xoá ô tìm</span>
+        </p>
+    </section>
+
+    <partial name="_Bill" model="Model.Bill" />
+</div>

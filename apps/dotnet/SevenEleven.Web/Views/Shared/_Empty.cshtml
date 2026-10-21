@@ -1,0 +1,16 @@
+@using SevenEleven.Web.Infrastructure
+@model EmptyState
+<div class="empty @Model.Css">
+    <span class="empty-ic">@ShopIcons.Svg(Model.Icon, 24)</span>
+    <div>
+        <p class="empty-title">@Model.Title</p>
+        @if (!string.IsNullOrEmpty(Model.Description))
+        {
+            <p class="empty-desc">@Model.Description</p>
+        }
+    </div>
+    @if (Model.ActionLabel is string label)
+    {
+        <div><a class="btn @Model.ActionCss" href="@Model.ActionHref">@label</a></div>
+    }
+</div>

@@ -1,0 +1,14 @@
+{
+  "name": "seven-eleven-dotnet-e2e",
+  "private": true,
+  "description": "Kiểm thử trình duyệt cho bản ASP.NET Core: bò đồ thị trang + kịch bản luồng chính",
+  "scripts": {
+    "setup": "npm install && npx playwright install chromium",
+    "crawl": "node crawl.cjs",
+    "flows": "node admin-flows.cjs && node pos-flow.cjs && node storefront-flow.cjs && node storefront-pages.cjs",
+    "all": "bash run-all.sh"
+  },
+  "devDependencies": {
+    "playwright": "^1.62.1"
+  }
+}

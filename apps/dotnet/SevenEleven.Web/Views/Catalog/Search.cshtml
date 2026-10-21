@@ -1,0 +1,80 @@
+@using SevenEleven.Web.Infrastructure
+@using SevenEleven.Web.Models.Shop
+@model SearchModel
+@{
+    var q = Model.Query;
+    var sortLabel = SearchModel.SortLabel(Model.Sort);
+}
+<div class="stack search-page">
+    @if (q.Length == 0)
+    {
+        <div>
+            <h1 class="page-title">Tìm kiếm sản phẩm</h1>
+            <p class="sec-sub">Nhập tên sản phẩm hoặc thương hiệu vào ô tìm kiếm, hoặc chọn một từ khoá phổ biến bên dưới.</p>
+            <partial name="_PopularSearches" />
+        </div>
+    }
+    else
+    {
+        <div class="search-head">
+            <div class="search-title">
+                <h1 class="page-title">Kết quả cho “@q”</h1>
+                <p class="sec-sub">@(Model.Results.Count > 0 ? $"Tìm thấy {Model.Results.Count} sản phẩm" : "Không có sản phẩm phù hợp")</p>
+            </div>
+            @if (Model.Results.Count > 1)
+            {
+                <form method="get" action="@ShopUrls.Search" class="sort-form">
+                    <input type="hidden" name="q" value="@q" />
+                    <label class="sort-box @(Model.Sort != "phu-hop" ? "changed" : null)">
+                        @ShopIcons.Svg("arrow-up-down", 16)
+                        <span class="sr-only">Sắp xếp</span>
+                        <select name="sapxep" data-autosubmit aria-label="Sắp xếp: @sortLabel">
+                            @foreach (var (key, label) in SearchModel.Sorts)
+                            {
+                                if (key == Model.Sort)
+                                {
+                                    <option value="@key" selected>@label</option>
+                                }
+                                else
+                                {
+                                    <option value="@key">@label</option>
+                                }
+                            }
+                        </select>
+                    </label>
+                    <noscript><button class="btn btn-sm btn-outline" type="submit">Xếp</button></noscript>
+                </form>
+            }
+        </div>
+        @if (Model.Groups.Count > 0)
+        {
+            <div class="related-groups">
+                <span class="sec-sub">Danh mục liên quan:</span>
+                @foreach (var (href, label) in Model.Groups)
+                {
+                    <a class="chip" href="@href">@label</a>
+                }
+            </div>
+        }
+
+        @if (Model.Results.Count > 0)
+        {
+            <partial name="_ProductGrid" model="Model.Results" />
+        }
+        else
+        {
+            <div class="search-empty">
+                <partial name="_Empty" model="@(new EmptyState("search-x", $"Không tìm thấy sản phẩm nào cho “{q}”", "Kiểm tra lại chính tả, thử từ khoá ngắn hơn hoặc chọn một từ khoá phổ biến.", Css: ""))" />
+                <partial name="_PopularSearches" />
+            </div>
+        }
+    }
+
+    @if (Model.Deals.Count > 0)
+    {
+        <section>
+            <div class="sec-head"><h2><a href="@ShopUrls.Promotions">Đang giảm giá</a></h2><a class="sec-all" href="@ShopUrls.Promotions">Xem tất cả @ShopIcons.Svg("chevron-right", 16)</a></div>
+            <partial name="_ProductRail" model="Model.Deals" />
+        </section>
+    }
+</div>

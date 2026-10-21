@@ -1,0 +1,262 @@
+@using SevenEleven.Core.Models
+@using SevenEleven.Core.Services
+@using SevenEleven.Web.Infrastructure
+@using SevenEleven.Web.Models.Shop
+@model MembershipModel
+@{
+    var tiers = MembershipService.Order.Select(MembershipService.Info).ToList();
+    var lowest = tiers[0];
+    var highest = tiers[^1];
+    var bestBirthday = tiers.Max(t => t.BirthdayDrinkDiscount);
+    var gold = MembershipService.Info(MemberTier.Gold);
+    var silver = MembershipService.Info(MemberTier.Silver);
+    var bronze = MembershipService.Info(MemberTier.Bronze);
+    var c = Model.Customer;
+    var signUpHref = ShopUrls.SignUpNext(ShopUrls.Account);
+    var signInHref = ShopUrls.SignInNext(ShopUrls.Account);
+    var tierTab = ShopUrls.AccountTab("hang");
+    var starsTab = ShopUrls.AccountTab("sao-vang");
+    var (sampleStars, sampleCarry) = StarService.Earn(0, 100_000);
+    (string Icon, string Label, string Value)[] highlights =
+    [
+        ("cup-soda", "Voucher đồ uống đến", $"-{Fmt.Num(highest.DrinkVoucher)} ₫/ly"),
+        ("cake", "Tháng sinh nhật giảm đến", $"{Math.Round(bestBirthday * 100)}%"),
+        ("gift", "Quà khách mới", "3 ly miễn phí"),
+        ("star", "Tích sao vàng", $"{Fmt.Compact(StarService.StarSpend)} = 1 sao"),
+    ];
+    (string Icon, string Tone, string Month, string Text)[] example =
+    [
+        ("trending-up", "brand", "Tháng 3", $"chi tiêu tích luỹ đạt {Fmt.Vnd(gold.MinSpend)}, lên hạng {gold.Label} ngay. Tháng này không bị xét giữ hạng."),
+        ("shield-check", "fresh", "Tháng 4", $"chi {Fmt.Vnd(gold.KeepPerMonth + 50_000)}, đủ mức {Fmt.Vnd(gold.KeepPerMonth)} nên ngày 01/05 vẫn giữ hạng {gold.Label}."),
+        ("trending-down", "warning", "Tháng 5", $"chỉ chi {Fmt.Vnd(gold.KeepPerMonth - 50_000)} nên ngày 01/06 xuống hạng {silver.Label}, chi tiêu tích luỹ về {Fmt.Vnd(silver.MinSpend)}. Chi thêm {Fmt.Vnd(gold.MinSpend - silver.MinSpend)} là lên lại {gold.Label}."),
+    ];
+    (string Icon, string Title, string Text)[] facts =
+    [
+        ("receipt-text", $"{Fmt.Vnd(StarService.StarSpend)} = 1 sao", $"Phần lẻ được cộng dồn sang đơn sau. Ví dụ đơn {Fmt.Vnd(100_000)} được {sampleStars} sao, {Fmt.Vnd(sampleCarry)} còn lại tính tiếp cho đơn kế."),
+        ("hourglass", $"Sao có hạn {StarService.StarValidMonths} tháng", "Tính từ ngày nhận, sao nhận trước được dùng trước. Đơn bị huỷ sẽ bị trừ lại số sao đã cộng."),
+        ("ticket-percent", "Đổi sao lấy voucher", $"Voucher dùng trong {StarService.RewardVoucherDays} ngày, cho đơn online và tại cửa hàng. Đổi sao không làm giảm chi tiêu xét hạng."),
+    ];
+    (string Q, string A)[] faqs =
+    [
+        ("Hạng thành viên được cập nhật khi nào?", "Lên hạng ngay khi một đơn hàng đưa chi tiêu tích luỹ chạm mốc của hạng trên. Việc giữ hạng được xét vào ngày 1 hằng tháng, dựa trên chi tiêu của tháng liền trước."),
+        ("Chi tiêu tích luỹ và chi tiêu mỗi tháng khác nhau thế nào?", $"Chi tiêu tích luỹ cộng dồn qua các tháng và quyết định bạn lên hạng nào. Chi tiêu mỗi tháng chỉ dùng để xét giữ hạng. Ví dụ hạng {gold.Label} cần tích luỹ từ {Fmt.Vnd(gold.MinSpend)} và chi tối thiểu {Fmt.Vnd(gold.KeepPerMonth)} mỗi tháng."),
+        ("Voucher đồ uống dùng như thế nào?", $"Voucher tự áp dụng khi giỏ hàng có đồ uống thuộc nhóm {Model.DrinkCategoryNames}: giảm {Fmt.Vnd(lowest.DrinkVoucher)} đến {Fmt.Vnd(highest.DrinkVoucher)} mỗi ly tuỳ hạng, tối đa {MembershipService.MaxDrinkVouchersPerOrder} ly mỗi đơn."),
+        ("Đơn mua tại cửa hàng có được cộng chi tiêu và sao vàng không?", "Có. Đơn online và đơn mua tại cửa hàng đều được cộng khi bạn đăng nhập hoặc đọc số điện thoại cho thu ngân. Đơn bị huỷ sẽ bị trừ lại cả chi tiêu lẫn sao."),
+    ];
+}
+<div class="stack-10">
+    <header class="mhero">
+        <div class="mhero-bg" aria-hidden="true"></div>
+        <div class="mhero-ring" aria-hidden="true"></div>
+        <p class="mhero-chip">@tiers.Count hạng thành viên · Tích sao vàng</p>
+        <h1 class="mhero-title headline">Mua sắm – nâng hạng</h1>
+        <p class="mhero-text">
+            Chi tiêu đến đâu, lên hạng đến đó: @string.Join(", ", tiers.Select(t => t.Label)) với voucher đồ uống mỗi tháng, ưu đãi tháng sinh nhật và
+            ly nước miễn phí. Cứ @Fmt.Vnd(StarService.StarSpend) chi tiêu lại được 1 sao vàng để đổi voucher.
+        </p>
+        <ul class="mhero-tiles">
+            @foreach (var (icon, label, value) in highlights)
+            {
+                <li>
+                    <span class="mhero-ic">@ShopIcons.Svg(icon, 20)</span>
+                    <span class="min-w-0">
+                        <span class="block small muted">@label</span>
+                        <span class="block mhero-value headline">@value</span>
+                    </span>
+                </li>
+            }
+        </ul>
+    </header>
+
+    @if (c is null)
+    {
+        <section class="mstatus-guest">
+            <span class="mstatus-ic">@ShopIcons.Svg("crown", 24)</span>
+            <div class="min-w-0 flex-1">
+                <h2 class="strong">Bạn đang ở hạng nào?</h2>
+                <p class="small muted">
+                    Đăng nhập để xem hạng, chi tiêu tích luỹ, mức giữ hạng tháng này và số sao vàng của bạn. Chưa có tài khoản?
+                    Đăng ký miễn phí để nhận ngay hạng @bronze.Label cùng gói quà khách mới.
+                </p>
+            </div>
+            <div class="mstatus-actions">
+                <a class="btn" href="@signUpHref">Đăng ký miễn phí</a>
+                <a class="btn btn-outline" href="@signInHref">Đăng nhập</a>
+            </div>
+        </section>
+    }
+    else if (Model.Keep is { } keep)
+    {
+        var tier = MembershipService.Info(c.Tier);
+        var next = MembershipService.Next(c.Tier);
+        var milestone = next ?? tier;
+        var spendPct = next is null ? 100 : Math.Min(100, (int)Math.Round(c.TierSpend * 100.0 / next.MinSpend, MidpointRounding.AwayFromZero));
+        var nextMonth = MembershipService.ShiftMonth(keep.Month, 1);
+        var reviewDay = Fmt.Date(MembershipService.MonthStart(nextMonth));
+        var lastDay = Fmt.Date(MembershipService.MonthStart(nextMonth).AddDays(-1));
+        var checkedKeep = keep.Exempt is null && keep.Required > 0;
+        var keepPct = checkedKeep ? Math.Min(100, (int)Math.Round(keep.Spent * 100.0 / keep.Required, MidpointRounding.AwayFromZero)) : 0;
+        var best = StarService.Rewards.LastOrDefault(r => r.Stars <= c.Stars);
+        var upcoming = StarService.Rewards.FirstOrDefault(r => r.Stars > c.Stars);
+        <section class="mstatus" aria-label="Hạng thành viên của bạn">
+            <div class="mstatus-head">
+                <span class="avatar avatar-md">@Fmt.Initials(c.FullName)</span>
+                <div class="min-w-0 flex-1">
+                    <h2 class="trunc strong">@c.FullName</h2>
+                    <p class="small muted">@Fmt.Phone(c.Phone)</p>
+                </div>
+                <div class="mstatus-tier">
+                    <span class="@TierStyle.Chip(c.Tier) chip-md">Hạng @tier.Label</span>
+                    <span class="xs muted">Từ @Fmt.Date(c.TierSince)</span>
+                </div>
+            </div>
+            <div class="mstatus-tiles">
+                <div class="mtile">
+                    <h3>@ShopIcons.Svg("trending-up", 16, "text-brand") Chi tiêu tích luỹ</h3>
+                    <p class="mtile-big">@Fmt.Vnd(c.TierSpend)</p>
+                    <div class="bar bar-brand" role="progressbar" aria-valuenow="@spendPct" aria-valuemin="0" aria-valuemax="100" aria-label="@(next is null ? "Đã đạt hạng cao nhất" : $"Đạt {spendPct}% mốc hạng {next.Label}")"><span style="width:@spendPct%"></span></div>
+                    <p class="xs muted mt-1">Mốc hạng @milestone.Label: @Fmt.Vnd(milestone.MinSpend)</p>
+                    @if (next is not null)
+                    {
+                        <p class="tile-note">@ShopIcons.Svg("trending-up", 16, "text-brand") <span>Chi tiêu thêm <b>@Fmt.Vnd(Math.Max(0, next.MinSpend - c.TierSpend))</b> để lên hạng @next.Label.</span></p>
+                    }
+                    else
+                    {
+                        <p class="tile-note">@ShopIcons.Svg("circle-check", 16, "text-fresh") <span>Bạn đang ở hạng cao nhất. Giữ mức chi tiêu mỗi tháng để giữ hạng nhé.</span></p>
+                    }
+                    <a class="tile-link" href="@tierTab">Chi tiết hạng của tôi @ShopIcons.Svg("arrow-right", 16)</a>
+                </div>
+                <div class="mtile">
+                    <h3>@ShopIcons.Svg("shield-check", 16, "text-brand") @(keep.Exempt == KeepExemption.BaseTier ? "Chi tiêu" : "Giữ hạng") tháng @MembershipService.MonthLabel(keep.Month)</h3>
+                    <p class="mtile-big">@Fmt.Vnd(keep.Spent)@if (checkedKeep) {<span class="mtile-of"> / @Fmt.Vnd(keep.Required)</span>}</p>
+                    @if (checkedKeep)
+                    {
+                        <div class="bar bar-brand" role="progressbar" aria-valuenow="@keepPct" aria-valuemin="0" aria-valuemax="100" aria-label="Đạt @keepPct% mức giữ hạng @tier.Label"><span style="width:@keepPct%"></span></div>
+                        <p class="xs muted mt-1">Chi tiêu tháng này · @(keep.DaysLeft == 1 ? "hôm nay là ngày cuối tháng" : $"còn {keep.DaysLeft} ngày")</p>
+                        @if (keep.Missing > 0)
+                        {
+                            <p class="tile-note">@ShopIcons.Svg("circle-alert", 16, "text-warning") <span>Chi thêm <b>@Fmt.Vnd(keep.Missing)</b> đến hết @lastDay để giữ hạng @tier.Label.@if (keep.DropTo is MemberTier drop) {<span class="muted"> Nếu chưa đủ, ngày @reviewDay bạn xuống hạng @MembershipService.Info(drop).Label.</span>}</span></p>
+                        }
+                        else
+                        {
+                            <p class="tile-note">@ShopIcons.Svg("circle-check", 16, "text-fresh") <span>Bạn đã chi đủ để giữ hạng @tier.Label sang tháng @MembershipService.MonthLabel(nextMonth).</span></p>
+                        }
+                    }
+                    else
+                    {
+                        <p class="xs muted mt-1">Chi tiêu tháng này</p>
+                        <p class="tile-note">
+                            @ShopIcons.Svg("circle-check", 16, "text-fresh")
+                            @if (keep.Exempt == KeepExemption.UpgradeMonth)
+                            {
+                                <span>Bạn vừa lên hạng @tier.Label trong tháng này nên tháng @MembershipService.MonthLabel(keep.Month) không bị xét giữ hạng. Từ tháng @MembershipService.MonthLabel(nextMonth), chi tối thiểu @Fmt.Vnd(tier.KeepPerMonth) mỗi tháng để giữ hạng.</span>
+                            }
+                            else
+                            {
+                                <span>Hạng @tier.Label không cần chi tiêu tối thiểu mỗi tháng để giữ hạng.</span>
+                            }
+                        </p>
+                    }
+                </div>
+                <div class="mtile mtile-stars">
+                    <h3>@ShopIcons.Svg("star", 16, "i-star") Sao vàng</h3>
+                    <p class="mtile-big"><span class="stars">@ShopIcons.Svg("star", 22) @Fmt.Num(c.Stars)</span><span class="sr-only"> sao vàng</span></p>
+                    <p class="xs muted mt-1">Chi tiêu thêm @Fmt.Vnd(StarService.SpendToNextStar(c.StarCarry)) để có thêm 1 sao</p>
+                    @if (best is not null)
+                    {
+                        <p class="tile-note">@ShopIcons.Svg("circle-check", 16, "text-fresh") <span>Đủ sao để đổi voucher <b>@Fmt.Vnd(best.Value)</b>.</span></p>
+                    }
+                    else if (upcoming is not null)
+                    {
+                        <p class="tile-note">@ShopIcons.Svg("trending-up", 16, "text-brand") <span>Còn @(upcoming.Stars - c.Stars) sao nữa để đổi voucher @Fmt.Vnd(upcoming.Value).</span></p>
+                    }
+                    <a class="tile-link" href="@starsTab">Đổi sao lấy voucher @ShopIcons.Svg("arrow-right", 16)</a>
+                </div>
+            </div>
+        </section>
+    }
+
+    <section class="stack-4">
+        <div>
+            <h2 class="sec-title">Hạng thành viên và quyền lợi</h2>
+            <p class="sec-sub">Chi tiêu tích luỹ đạt mốc là lên hạng ngay. Từ hạng @silver.Label, mỗi hạng cần một mức chi tối thiểu mỗi tháng để giữ hạng.</p>
+        </div>
+        <partial name="_TierLadder" model="((MemberTier?)c?.Tier, (int?)c?.TierSpend)" />
+    </section>
+
+    <section class="stack-4">
+        <div>
+            <h2 class="sec-title">Thể lệ chương trình</h2>
+            <p class="sec-sub">Áp dụng cho đơn đặt online và đơn mua tại cửa hàng khi bạn đăng nhập hoặc đọc số điện thoại cho thu ngân.</p>
+        </div>
+        <div class="rules-grid">
+            <partial name="_MembershipRules" model="@("ring-box pad")" />
+            <div class="example">
+                <h3 class="strong">Ví dụ với hạng @gold.Label</h3>
+                <ol>
+                    @foreach (var (icon, tone, month, text) in example)
+                    {
+                        <li>
+                            <span class="ex-ic tone-@tone">@ShopIcons.Svg(icon, 16)</span>
+                            <p><b>@month:</b> @text</p>
+                        </li>
+                    }
+                </ol>
+            </div>
+        </div>
+    </section>
+
+    <section class="stack-4">
+        <div class="sec-row">
+            <div>
+                <h2 class="sec-title">@ShopIcons.Svg("star", 20, "i-star") Sao vàng</h2>
+                <p class="sec-sub">Mua sắm là có sao: chi tiêu càng nhiều, sao càng nhiều, dùng sao đổi voucher giảm giá cho đơn sau.</p>
+            </div>
+            @if (c is not null)
+            {
+                <a class="link small" href="@starsTab">Đổi sao của bạn</a>
+            }
+        </div>
+        <ul class="facts3">
+            @foreach (var (icon, title, text) in facts)
+            {
+                <li>
+                    <span class="mhero-ic">@ShopIcons.Svg(icon, 20)</span>
+                    <div class="min-w-0">
+                        <p class="strong">@title</p>
+                        <p class="small muted">@text</p>
+                    </div>
+                </li>
+            }
+        </ul>
+        <div class="stack-3">
+            <h3 class="strong sub-h">Bảng đổi sao</h3>
+            <partial name="_StarRewards" model="(int?)null" />
+        </div>
+    </section>
+
+    <section>
+        <h2 class="sec-title mb-2">Câu hỏi thường gặp</h2>
+        <div class="faq ring-box">
+            @foreach (var (q, a) in faqs)
+            {
+                <details>
+                    <summary>@q @ShopIcons.Svg("chevron-down", 16, "faq-chev")</summary>
+                    <p>@a</p>
+                </details>
+            }
+        </div>
+    </section>
+
+    <section class="mcta">
+        <div>
+            <h2 class="headline mcta-title">@(c is null ? "Trở thành thành viên ngay" : "Theo dõi hạng và sao vàng")</h2>
+            <p>
+                @(c is null
+                    ? $"Đăng ký bằng số điện thoại, xác minh một lần qua mã OTP. Thành viên mới nhận ngay hạng {bronze.Label}. {bronze.FreeDrink}."
+                    : "Xem lịch sử lên, xuống hạng, đổi sao lấy voucher và các voucher của bạn trong tài khoản.")
+            </p>
+        </div>
+        <a class="btn btn-white btn-lg strong" href="@(c is null ? signUpHref : tierTab)">@(c is null ? "Đăng ký miễn phí" : "Xem hạng của tôi")</a>
+    </section>
+</div>

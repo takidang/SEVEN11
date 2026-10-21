@@ -1,0 +1,28 @@
+@model List<Store>
+<div class="page-head">
+    <div>
+        <h1>Bán tại quầy</h1>
+        <p>Bạn đang xem toàn chuỗi. Chọn cửa hàng đang đứng quầy để bán hàng và trừ đúng tồn kho.</p>
+    </div>
+</div>
+@foreach (var group in Model.GroupBy(s => s.Province))
+{
+    <h2 class="pick-group">@group.Key</h2>
+    <div class="store-pick">
+        @foreach (var s in group)
+        {
+            var active = s.Status == StoreStatus.Active;
+            <form method="post" asp-action="PickStore">
+                <input type="hidden" name="storeId" value="@s.Id" />
+                <button type="submit" style="width:100%" disabled="@(!active)">
+                    <b>@s.Code – @s.Name</b>
+                    <span class="cell-sub">@s.Address, @s.Ward</span>
+                    @if (!active)
+                    {
+                        <span class="badge warning" style="justify-self:start">@Labels.Store(s.Status)</span>
+                    }
+                </button>
+            </form>
+        }
+    </div>
+}

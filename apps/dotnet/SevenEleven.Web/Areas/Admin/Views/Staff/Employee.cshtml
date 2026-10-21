@@ -1,0 +1,100 @@
+@using SevenEleven.Web.Areas.Admin.Controllers
+@model EmployeeFormModel
+@{
+    var i = Model.Input;
+    var e = Model.Errors;
+    var emp = Model.Employee;
+    var isNew = emp is null;
+    var staff = ViewBag.Staff as StaffUser;
+    var roles = Model.ActorIsAdmin ? Enum.GetValues<StaffRole>() : [StaffRole.Cashier];
+    string Initials(string name) { var parts = name.Split(' ', StringSplitOptions.RemoveEmptyEntries); return parts.Length >= 2 ? $"{parts[^2][0]}{parts[^1][0]}" : name[..1]; }
+}
+<div class="page-head">
+    <div>
+        @if (emp is null)
+        {
+            <h1>Thêm nhân viên</h1>
+            <p>@(Model.ActorIsAdmin ? "Tài khoản đăng nhập bằng email, mật khẩu mặc định 123456." : "Quản lý cửa hàng chỉ thêm được thu ngân cho cửa hàng của mình.")</p>
+        }
+        else
+        {
+            <h1 class="person"><span class="avatar-sm">@Initials(emp.FullName)</span> @emp.FullName <span class="badge @ChainAdminService.EmployeeStatusTone(emp.Status)">@ChainAdminService.EmployeeStatusLabel(emp.Status)</span></h1>
+            <p>@emp.Code · @Labels.Role(emp.Role) · @(emp.Store is null ? "Toàn chuỗi" : $"Cửa hàng {emp.Store.Code} – {emp.Store.Name}")</p>
+        }
+    </div>
+    <a class="btn" asp-action="Index">← Danh sách nhân viên</a>
+</div>
+
+<div class="detail-grid">
+    @if (Model.CanEdit)
+    {
+        <form method="post" asp-action="SaveEmployee" class="panel form">
+            <input type="hidden" name="Id" value="@i.Id" />
+            <div class="form-grid">
+                <label class="field"><span>Họ tên</span><input name="FullName" value="@i.FullName" maxlength="60" class="@Forms.Invalid(e, "FullName")" />@Forms.Error(e, "FullName")</label>
+                <label class="field"><span>Mã nhân viên</span><input value="@(emp?.Code ?? "Tự động cấp")" disabled /></label>
+                <label class="field"><span>Số điện thoại</span><input name="Phone" value="@i.Phone" inputmode="tel" class="@Forms.Invalid(e, "Phone")" />@Forms.Error(e, "Phone")</label>
+                <label class="field"><span>Email đăng nhập</span><input name="Email" type="email" value="@i.Email" class="@Forms.Invalid(e, "Email")" />@Forms.Error(e, "Email")</label>
+                <label class="field"><span>Vai trò</span>
+                    <select name="Role" disabled="@(Model.IsSelf || !Model.ActorIsAdmin)" class="@Forms.Invalid(e, "Role")">
+                        @foreach (var r in roles) { <option value="@r" selected="@(r == i.Role)">@Labels.Role(r)</option> }
+                    </select>
+                    @if (Model.IsSelf || !Model.ActorIsAdmin) { <input type="hidden" name="Role" value="@i.Role" /> }
+                    @Forms.Error(e, "Role")
+                </label>
+                <label class="field"><span>Cửa hàng</span>
+                    <select name="StoreId" disabled="@(!Model.ActorIsAdmin)" class="@Forms.Invalid(e, "StoreId")">
+                        <option value="">Toàn chuỗi</option>
+                        @foreach (var s in Model.Stores) { <option value="@s.Id" selected="@(s.Id == i.StoreId)">@s.Code – @s.Name</option> }
+                    </select>
+                    @if (!Model.ActorIsAdmin) { <input type="hidden" name="StoreId" value="@i.StoreId" /> }
+                    @Forms.Error(e, "StoreId")
+                </label>
+                <label class="field"><span>Trạng thái</span>
+                    <select name="Status" disabled="@Model.IsSelf">
+                        @foreach (var st in Enum.GetValues<EmployeeStatus>()) { <option value="@st" selected="@(st == i.Status)">@ChainAdminService.EmployeeStatusLabel(st)</option> }
+                    </select>
+                    @if (Model.IsSelf) { <input type="hidden" name="Status" value="@i.Status" /> }
+                </label>
+                <label class="field"><span>Ngày vào làm</span><input type="date" name="HiredAt" value="@i.HiredAt?.ToString("yyyy-MM-dd")" class="@Forms.Invalid(e, "HiredAt")" />@Forms.Error(e, "HiredAt")</label>
+            </div>
+            @if (Model.IsSelf) { <small class="muted">Không tự đổi vai trò hay khoá tài khoản của mình.</small> }
+            <div class="form-actions">
+                <a class="btn" asp-action="Index">Huỷ</a>
+                <button class="btn btn-primary" type="submit">@(isNew ? "Thêm nhân viên" : "Lưu thay đổi")</button>
+            </div>
+        </form>
+    }
+    else if (emp is not null)
+    {
+        <section class="panel">
+            <dl class="kv">
+                <dt>Số điện thoại</dt><dd>@Phone.Format(emp.Phone)</dd>
+                <dt>Email</dt><dd>@emp.Email</dd>
+                <dt>Vai trò</dt><dd>@Labels.Role(emp.Role)</dd>
+                <dt>Cửa hàng</dt><dd>@(emp.Store is null ? "Toàn chuỗi" : $"{emp.Store.Code} – {emp.Store.Name}")</dd>
+                <dt>Ngày vào làm</dt><dd>@emp.HiredAt.ToString("dd/MM/yyyy")</dd>
+            </dl>
+            <p class="muted" style="margin:10px 0 0">@(emp.Id == staff?.Id ? "Đây là tài khoản của bạn. Liên hệ quản trị chuỗi để thay đổi thông tin." : "Bạn chỉ xem được thông tin nhân viên này.")</p>
+        </section>
+    }
+    @if (emp is not null)
+    {
+        <section class="panel">
+            <div class="panel-head"><div><h2>Ca làm tuần này</h2><p>@Model.WeekStart.ToString("dd/MM") – @Model.WeekStart.AddDays(6).ToString("dd/MM") · @Model.WeekShifts.Count ca · @(Model.WeekShifts.Count * ShiftService.HoursPerShift) giờ</p></div></div>
+            @if (Model.WeekShifts.Count == 0)
+            {
+                <p class="muted" style="margin:0">@(emp.Role == StaffRole.Admin ? "Quản trị chuỗi không xếp ca tại quầy." : "Chưa có ca nào trong tuần này.")</p>
+            }
+            else
+            {
+                <ul class="list-plain">
+                    @foreach (var s in Model.WeekShifts)
+                    {
+                        <li style="display:flex;justify-content:space-between;gap:8px"><span><b style="font-weight:500">@TimeText.WeekdayShort(s.Date) @s.Date.ToString("dd/MM")</b><span class="cell-sub">@ShiftService.Label(s.Type) @ShiftService.Time(s.Type) · CH @s.Store?.Code</span></span><span class="badge @ShiftService.StatusTone(s.Status)">@ShiftService.StatusLabel(s.Status)</span></li>
+                    }
+                </ul>
+            }
+        </section>
+    }
+</div>

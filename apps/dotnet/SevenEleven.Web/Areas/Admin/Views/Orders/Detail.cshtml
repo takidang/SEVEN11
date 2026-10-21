@@ -1,0 +1,166 @@
+@model Order
+@{
+    var employee = ViewBag.Employee as Employee;
+    var next = OrderFlow.Next(Model.Status);
+    var events = Model.Timeline.OrderBy(t => t.At).ThenBy(t => t.Id).ToList();
+    var here = Context.Request.Path + Context.Request.QueryString;
+    var now = DateTime.Now;
+    // Cột "Thành tiền" đã trừ giảm theo món; phần giảm còn lại (ưu đãi thành viên, mã) tính trên cả đơn.
+    var goods = Model.Items.Sum(i => i.LineTotal);
+    var orderDiscount = Model.Discount - Model.Items.Sum(i => i.Discount);
+}
+<div class="page-head">
+    <div>
+        <h1>Đơn @Model.Code <span class="badge @Labels.Tone(Model.Status)" style="vertical-align:middle">@Labels.Status(Model.Status)</span></h1>
+        <p>@Labels.Channel(Model.Channel) · đặt @Model.CreatedAt.ToString("HH:mm dd/MM/yyyy") · cửa hàng @Model.Store?.Code – @Model.Store?.Name</p>
+    </div>
+    <div class="page-actions">
+        <a class="btn" asp-action="Index">← Bảng đơn</a>
+        @if (Model.Channel == SalesChannel.InStore && Model.Status == OrderStatus.Completed)
+        {
+            <a class="btn" asp-controller="Pos" asp-action="Receipt" asp-route-id="@Model.Code">@Icons.Svg("printer", 16) In lại hoá đơn</a>
+        }
+        @if (next is OrderStatus to)
+        {
+            <form method="post" asp-action="Advance" class="inline">
+                <input type="hidden" name="id" value="@Model.Id" />
+                <input type="hidden" name="to" value="@to" />
+                <input type="hidden" name="returnUrl" value="@here" />
+                <button class="btn btn-primary" type="submit">@OrderFlow.ActionLabel(to)</button>
+            </form>
+        }
+    </div>
+</div>
+
+<div class="detail-grid">
+    <div style="display:grid;gap:16px">
+        <section class="panel flush">
+            <div class="panel-head pad"><h2>Sản phẩm · @Model.Items.Sum(i => i.Quantity) món</h2></div>
+            <div class="table-wrap">
+                <table class="table">
+                    <thead><tr><th>Sản phẩm</th><th class="num">Đơn giá</th><th class="num">SL</th><th class="num">Giảm</th><th class="num">Thành tiền</th></tr></thead>
+                    <tbody>
+                        @foreach (var i in Model.Items)
+                        {
+                            <tr>
+                                <td>
+                                    <span class="product-cell">
+                                        @if (i.Product is not null) { <img class="thumb" src="@i.Product.Image" alt="" /> }
+                                        <span>@i.Name@if (i.PromoLabel is string l) { <span class="promo">@l</span> }<span class="cell-sub">@i.Product?.Sku</span></span>
+                                    </span>
+                                </td>
+                                <td class="num">@Money.Format(i.UnitPrice)</td>
+                                <td class="num">@i.Quantity</td>
+                                <td class="num">@(i.Discount > 0 ? "−" + Money.Format(i.Discount) : "")</td>
+                                <td class="num">@Money.Format(i.LineTotal)</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            <div style="padding:12px 16px 16px;max-width:360px;margin-left:auto">
+                <div class="sum-row"><span>Tiền hàng</span><span class="tabular">@Money.Format(goods)</span></div>
+                @if (orderDiscount > 0)
+                {
+                    <div class="sum-row" style="color:var(--brand)"><span>@Labels.OrderDiscount(Model)</span><span class="tabular">−@Money.Format(orderDiscount)</span></div>
+                }
+                @if (Model.Channel == SalesChannel.Online)
+                {
+                    <div class="sum-row"><span>Phí giao hàng</span><span class="tabular">@(Model.ShippingFee == 0 ? "Miễn phí" : Money.Format(Model.ShippingFee))</span></div>
+                }
+                <div class="sum-total"><span>Tổng cộng</span><span class="tabular">@Money.Format(Model.Total)</span></div>
+                @if (Model.Discount > 0)
+                {
+                    <div class="sum-row cell-sub"><span>Tổng khuyến mãi (gồm giảm theo món)</span><span class="tabular">@Money.Format(Model.Discount)</span></div>
+                }
+                <div class="sum-row"><span>@Labels.Payment(Model.PaymentMethod)</span><span class="badge @Labels.Tone(Model.PaymentStatus)">@Labels.PaymentState(Model.PaymentStatus)</span></div>
+                @if (Model.CashReceived is int cash)
+                {
+                    <div class="sum-row"><span>Tiền mặt</span><span class="tabular">Khách đưa @Money.Format(cash) · trả lại @Money.Format(Model.ChangeGiven ?? 0)</span></div>
+                }
+            </div>
+        </section>
+
+        @if (OrderFlow.CanCancel(Model.Status))
+        {
+            <section class="panel">
+                <div class="panel-head"><div><h2>Huỷ đơn</h2><p>Hàng trả về kho; thành viên bị trừ lại sao và chi tiêu của đơn; đơn đã trả trước chuyển sang hoàn tiền.</p></div></div>
+                <form method="post" asp-action="Cancel" class="toolbar" data-confirm="Huỷ đơn @Model.Code?">
+                    <input type="hidden" name="id" value="@Model.Id" />
+                    <input type="hidden" name="returnUrl" value="@here" />
+                    <select class="input grow" name="reason" aria-label="Lý do huỷ">
+                        <option>Hết hàng, khách không đổi món</option>
+                        <option>Khách yêu cầu huỷ</option>
+                        <option>Không liên lạc được khách</option>
+                        <option>Ngoài vùng giao hàng</option>
+                    </select>
+                    <button class="btn btn-danger" type="submit">Huỷ đơn</button>
+                </form>
+            </section>
+        }
+    </div>
+
+    <div style="display:grid;gap:16px">
+        <section class="panel">
+            <h2 style="font-size:15px;margin-bottom:12px">Tiến trình</h2>
+            <ol class="steps">
+                @foreach (var e in events)
+                {
+                    <li class="@(e.Status == OrderStatus.Cancelled ? "cancel" : "done")">
+                        <b>@Labels.Status(e.Status)</b>
+                        <small>@e.At.ToString("HH:mm dd/MM") · @(e.By ?? (e.Status == OrderStatus.Pending && Model.Channel == SalesChannel.Online ? "Khách đặt hàng online" : "Hệ thống"))</small>
+                        @if (e.Note is string note) { <small>@note</small> }
+                    </li>
+                }
+                @if (next is OrderStatus upcoming)
+                {
+                    @foreach (var s in OrderFlow.Online.SkipWhile(s => s != upcoming))
+                    {
+                        <li class="future">@Labels.Status(s)</li>
+                    }
+                }
+            </ol>
+        </section>
+
+        <section class="panel">
+            <h2 style="font-size:15px;margin-bottom:12px">Khách hàng</h2>
+            @if (Model.Customer is { } c)
+            {
+                <dl class="kv">
+                    <dt>Thành viên</dt><dd>@c.FullName</dd>
+                    <dt>Điện thoại</dt><dd>@Phone.Format(c.Phone)</dd>
+                    <dt>Hạng</dt><dd><span class="tier-chip @c.Tier">@MembershipService.Info(c.Tier).Label</span> · ★ @c.Stars sao</dd>
+                    @if (Model.StarsEarned is int stars && Model.Status != OrderStatus.Cancelled)
+                    {
+                        <dt>Sao của đơn</dt><dd>+@stars</dd>
+                    }
+                </dl>
+            }
+            else
+            {
+                <p class="muted" style="margin:0">Khách lẻ (không dùng thẻ thành viên)</p>
+            }
+            @if (employee is not null)
+            {
+                <p class="cell-sub" style="margin:10px 0 0">@(Model.Channel == SalesChannel.InStore ? "Thu ngân" : "Nhân viên xác nhận"): @employee.FullName</p>
+            }
+        </section>
+
+        @if (Model.Delivery is { } d)
+        {
+            var late = d.Eta < now && Model.Status is not (OrderStatus.Completed or OrderStatus.Cancelled);
+            var lateMinutes = (int)(now - d.Eta).TotalMinutes;
+            <section class="panel">
+                <h2 style="font-size:15px;margin-bottom:12px">Giao hàng</h2>
+                <dl class="kv">
+                    <dt>Người nhận</dt><dd>@d.Recipient · @Phone.Format(d.Phone)</dd>
+                    <dt>Địa chỉ</dt><dd>@d.Address</dd>
+                    <dt>Hẹn giao</dt><dd>@d.Eta.ToString("HH:mm dd/MM")@if (late) { <span class="badge danger" style="margin-left:6px">Trễ @lateMinutes phút</span> }</dd>
+                    @if (d.DistanceKm is double km) { <dt>Khoảng cách</dt><dd>@DeliveryService.FormatDistance(km)</dd> }
+                    @if (d.ShipperName is string rider) { <dt>Nhân viên giao</dt><dd>@rider@(d.ShipperPhone is string sp ? $" · {Phone.Format(sp)}" : "")</dd> }
+                    @if (d.Note is string note) { <dt>Ghi chú</dt><dd>@note</dd> }
+                </dl>
+            </section>
+        }
+    </div>
+</div>

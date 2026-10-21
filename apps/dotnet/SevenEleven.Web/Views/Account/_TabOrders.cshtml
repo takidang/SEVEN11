@@ -1,0 +1,54 @@
+@using SevenEleven.Core.Models
+@using SevenEleven.Web.Infrastructure
+@using SevenEleven.Web.Models.Shop
+@model AccountModel
+@{
+    var mine = Model.Orders;
+    var filter = AccountModel.OrderFilters.First(f => f.Key == Model.OrderFilter);
+    IEnumerable<Order> Matching(OrderStatus[]? statuses) => statuses is null ? mine : mine.Where(o => statuses.Contains(o.Status));
+    var filtered = Matching(filter.Statuses).ToList();
+    var shown = filtered.Take(Model.OrderLimit).ToList();
+    var more = Math.Min(AccountModel.OrderPage, filtered.Count - Model.OrderLimit);
+    string Href(string key, int? limit = null) => $"{ShopUrls.AccountTab("don-hang")}{(key == "tat-ca" ? "" : $"&loc={key}")}{(limit is int l ? $"&so={l}" : "")}";
+}
+@if (mine.Count == 0)
+{
+    <div class="empty boxed">
+        <span class="empty-ic">@ShopIcons.Svg("package", 24)</span>
+        <div>
+            <h2 class="empty-title big">Bạn chưa có đơn hàng nào</h2>
+            <p class="empty-desc">Đặt món đầu tiên ngay hôm nay – cửa hàng gần bạn giao tới trong 24 phút.</p>
+        </div>
+        <a class="btn" href="/">Mua sắm ngay</a>
+    </div>
+}
+else
+{
+    <section class="panel2" id="don-hang">
+        <div class="panel2-head">
+            <div>
+                <h2 class="panel2-title">Đơn hàng của tôi</h2>
+                <p class="panel2-desc">@mine.Count đơn gần nhất, mới nhất ở trên cùng</p>
+            </div>
+        </div>
+        <div class="order-filters no-scrollbar" role="tablist" aria-label="Lọc đơn hàng">
+            @foreach (var (key, label, statuses) in AccountModel.OrderFilters)
+            {
+                var on = key == filter.Key;
+                <a class="chip @(on ? "active" : null)" role="tab" aria-selected="@(on ? "true" : "false")" href="@Href(key)">@label <span class="chip-n">@Matching(statuses).Count()</span></a>
+            }
+        </div>
+        @if (shown.Count > 0)
+        {
+            <partial name="_OrderList" model="shown" />
+        }
+        else
+        {
+            <p class="center small muted pad-y">Không có đơn nào trong mục này.</p>
+        }
+        @if (more > 0)
+        {
+            <div class="panel2-more"><a class="btn btn-ghost text-brand" href="@Href(filter.Key, Model.OrderLimit + AccountModel.OrderPage)" data-keep-scroll-link>Xem thêm @more đơn cũ hơn</a></div>
+        }
+    </section>
+}

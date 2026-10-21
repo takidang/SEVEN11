@@ -1,0 +1,156 @@
+@using System.Text.Json
+@using SevenEleven.Web.Areas.Admin.Controllers
+@model PromotionFormModel
+@{
+    var i = Model.Input;
+    var e = Model.Errors;
+    var editing = Model.Existing is not null;
+    var type = Model.Existing?.Type ?? i.Type;
+    var types = new[] { PromotionType.FlashSale, PromotionType.Percent, PromotionType.Fixed, PromotionType.BuyXGetY, PromotionType.MemberVoucher };
+    var times = Enumerable.Range(0, 49).Select(k => $"{k / 2:00}:{(k % 2) * 30:00}").ToList();
+    var picked = JsonSerializer.Serialize(Model.Picked.Select(p => new { id = p.Id, name = p.Name, sku = p.Sku, price = Money.Format(p.Price) }));
+}
+<div class="page-head">
+    <div>
+        <h1>@(editing ? $"Sửa khuyến mãi: {Model.Existing!.Name}" : "Tạo khuyến mãi")</h1>
+        <p>@(editing ? $"Đã dùng {Model.Existing!.UsageCount} lượt. Loại khuyến mãi không đổi được sau khi tạo." : "Chương trình áp dụng cho toàn chuỗi, trên các kênh bán bạn chọn.")</p>
+    </div>
+    <a class="btn" asp-action="Index">← Danh sách khuyến mãi</a>
+</div>
+
+<form method="post" asp-action="Save" class="panel form" style="max-width:920px" data-promotion-form data-type="@type">
+    <input type="hidden" name="Id" value="@i.Id" />
+    @if (e.Count > 0)
+    {
+        <div class="flash flash-error">Kiểm tra lại các ô được đánh dấu đỏ.</div>
+    }
+    <div class="form-section">
+        <h3>Loại khuyến mãi</h3>
+        <div class="pay-methods" style="grid-template-columns:repeat(auto-fit,minmax(200px,1fr))">
+            @foreach (var t in types.Where(t => !editing || t == type))
+            {
+                <label><input type="radio" name="Type" value="@t" checked="@(t == type)" data-type-radio /> <span>@PromotionAdminService.TypeLabel(t)<small class="cell-sub">@PromotionAdminService.TypeHint(t)</small></span></label>
+            }
+        </div>
+    </div>
+
+    <div class="form-section">
+        <h3>Thông tin chung</h3>
+        <label class="field"><span>Tên chương trình</span><input name="Name" value="@i.Name" placeholder="VD: Cuối tuần giảm 10%" maxlength="80" class="@Forms.Invalid(e, "Name")" />@Forms.Error(e, "Name")</label>
+        <label class="field"><span>Mô tả cho khách</span><textarea name="Description" maxlength="240" placeholder="VD: Giảm 10% tối đa 30.000 ₫ cho đơn từ 150.000 ₫." class="@Forms.Invalid(e, "Description")">@i.Description</textarea>@Forms.Error(e, "Description")</label>
+        <div data-show="Percent Fixed">
+            <label class="field"><span>Mã khuyến mãi <small class="help">Khách nhập mã khi thanh toán online hoặc đọc cho thu ngân.</small></span>
+                <span class="inline-form"><input name="Code" id="promo-code" value="@i.Code" placeholder="VD: CUOITUAN10" maxlength="20" style="text-transform:uppercase" class="@Forms.Invalid(e, "Code")" />
+                <button type="button" class="btn btn-sm" data-fill="#promo-code" data-value="@PromotionAdminService.NewCode()">Tạo mã</button></span>
+                @Forms.Error(e, "Code")
+            </label>
+        </div>
+        <p class="muted" data-show="MemberVoucher" style="margin:0">Tự áp dụng cho khách đăng nhập thành viên, không cần nhập mã.</p>
+        <p class="muted" data-show="FlashSale BuyXGetY" style="margin:0">Tự áp dụng khi giỏ hàng đủ điều kiện, không cần nhập mã.</p>
+    </div>
+
+    <div class="form-section">
+        <h3>Mức ưu đãi</h3>
+        <div class="form-grid" data-show="Percent FlashSale Fixed">
+            <label class="field"><span data-value-label>@(type == PromotionType.Fixed ? "Số tiền giảm" : "Mức giảm")</span>
+                <span class="suffix"><input name="Value" value="@i.Value" inputmode="numeric" class="@Forms.Invalid(e, "Value")" /><span class="unit" data-value-unit>@(type == PromotionType.Fixed ? "₫" : "%")</span></span>
+                @Forms.Error(e, "Value")
+            </label>
+            <label class="field" data-show="Percent"><span>Giảm tối đa</span><span class="suffix"><input name="MaxDiscount" value="@i.MaxDiscount" inputmode="numeric" placeholder="Không giới hạn" class="@Forms.Invalid(e, "MaxDiscount")" /><span class="unit">₫</span></span>@Forms.Error(e, "MaxDiscount")</label>
+            <label class="field" data-show="Percent Fixed"><span>Đơn tối thiểu</span><span class="suffix"><input name="MinOrderValue" value="@i.MinOrderValue" inputmode="numeric" placeholder="Không yêu cầu" class="@Forms.Invalid(e, "MinOrderValue")" /><span class="unit">₫</span></span>@Forms.Error(e, "MinOrderValue")</label>
+        </div>
+        <div data-show="FlashSale" style="display:grid;gap:8px">
+            <div class="form-grid">
+                <label class="field"><span>Từ giờ</span>
+                    <select name="DailyStart" class="@Forms.Invalid(e, "DailyStart")" id="daily-start"><option value="">Chọn giờ</option>@foreach (var t in times.Take(48)) { <option selected="@(t == i.DailyStart)">@t</option> }</select>
+                    @Forms.Error(e, "DailyStart")
+                </label>
+                <label class="field"><span>Đến giờ</span>
+                    <select name="DailyEnd" class="@Forms.Invalid(e, "DailyEnd")" id="daily-end"><option value="">Chọn giờ</option>@foreach (var t in times.Skip(1)) { <option selected="@(t == i.DailyEnd)">@t</option> }</select>
+                    @Forms.Error(e, "DailyEnd")
+                </label>
+            </div>
+            <span class="toolbar" style="font-size:13px">Khung giờ quen thuộc:
+                <button type="button" class="btn btn-sm" data-window="06:00 10:00">Buổi sáng 06:00–10:00</button>
+                <button type="button" class="btn btn-sm" data-window="14:00 17:00">Ăn xế 14:00–17:00</button>
+                <button type="button" class="btn btn-sm" data-window="17:00 21:00">Ăn tối 17:00–21:00</button>
+            </span>
+        </div>
+        <div data-show="BuyXGetY" style="display:grid;gap:8px">
+            <div class="form-grid">
+                <label class="field"><span>Khách mua</span><span class="suffix"><input name="BuyQuantity" value="@i.BuyQuantity" inputmode="numeric" maxlength="2" class="@Forms.Invalid(e, "BuyQuantity")" data-buy /><span class="unit">sản phẩm</span></span>@Forms.Error(e, "BuyQuantity")</label>
+                <label class="field"><span>Được tặng thêm</span><span class="suffix"><input name="GetQuantity" value="@i.GetQuantity" inputmode="numeric" maxlength="2" class="@Forms.Invalid(e, "GetQuantity")" data-get /><span class="unit">sản phẩm</span></span>@Forms.Error(e, "GetQuantity")</label>
+            </div>
+            <p class="muted" style="margin:0" data-bxgy-note>Khách lấy X+Y sản phẩm cùng loại chỉ trả tiền X; phần tặng tính theo giá đang bán (kể cả giá flash sale).</p>
+        </div>
+        <div data-show="MemberVoucher">
+            <table class="table">
+                <thead><tr><th>Hạng</th><th class="num">Giảm mỗi ly</th><th class="num">Voucher mỗi tháng</th></tr></thead>
+                <tbody>
+                    @foreach (var t in MembershipService.Order)
+                    {
+                        var info = MembershipService.Info(t);
+                        <tr><td><span class="tier-chip @t">@info.Label</span></td><td class="num">-@Money.Format(info.DrinkVoucher)/ly</td><td class="num">@info.VouchersPerMonth voucher/tháng</td></tr>
+                    }
+                </tbody>
+            </table>
+            <p class="muted" style="margin:6px 0 0">Mức giảm theo chính sách hạng thành viên, tối đa 3 ly/đơn, áp dụng cho Trà sữa & Trà trái cây.</p>
+        </div>
+    </div>
+
+    <div class="form-section">
+        <h3>Phạm vi áp dụng</h3>
+        <div data-show="FlashSale Percent Fixed BuyXGetY" style="display:grid;gap:10px">
+            <div class="field" data-picker data-search-url="/Admin/Promotions/ProductSearch" data-picked="@picked">
+                <span>Sản phẩm</span>
+                <input class="input" type="search" placeholder="Tên, thương hiệu, SKU hoặc mã vạch" data-picker-search aria-label="Tìm sản phẩm áp dụng" />
+                <div class="chips" data-picker-chips></div>
+                <div data-picker-results class="list-plain" style="max-height:240px;overflow:auto"></div>
+                <div data-picker-inputs></div>
+                @Forms.Error(e, "ProductIds")
+            </div>
+            <div class="field"><span>Danh mục</span>
+                <div class="checks">
+                    @foreach (var c in Model.Categories)
+                    {
+                        <label><input type="checkbox" name="CategoryIds" value="@c.Id" checked="@i.CategoryIds.Contains(c.Id)" /> @c.Name</label>
+                    }
+                </div>
+            </div>
+            <small class="help" data-show="FlashSale BuyXGetY">Bắt buộc chọn sản phẩm hoặc danh mục.</small>
+            <small class="help" data-show="Percent Fixed">Không chọn sản phẩm lẫn danh mục = áp dụng cho toàn bộ giỏ hàng.</small>
+        </div>
+        <div class="field" data-show="Percent Fixed MemberVoucher"><span>Hạng thành viên</span>
+            <div class="checks">
+                @foreach (var key in PromotionAdminService.TierKeys)
+                {
+                    var tier = Enum.Parse<MemberTier>(key, true);
+                    <label><input type="checkbox" name="Tiers" value="@key" checked="@i.Tiers.Contains(key)" /> @MembershipService.Info(tier).Label</label>
+                }
+            </div>
+            <small class="help" data-show="Percent Fixed">Không chọn hạng nào = mọi khách đều dùng được, kể cả khách chưa đăng nhập.</small>
+            @Forms.Error(e, "Tiers")
+        </div>
+        <div class="field"><span>Kênh bán</span>
+            <div class="checks">
+                <label><input type="checkbox" name="Channels" value="online" checked="@i.Channels.Contains("online")" /> Online (web, app)</label>
+                <label><input type="checkbox" name="Channels" value="in-store" checked="@i.Channels.Contains("in-store")" /> Tại quầy</label>
+            </div>
+            @Forms.Error(e, "Channels")
+        </div>
+    </div>
+
+    <div class="form-section">
+        <h3>Thời gian & giới hạn</h3>
+        <div class="form-grid" style="grid-template-columns:repeat(3,minmax(0,1fr))">
+            <label class="field"><span>Bắt đầu</span><input type="date" name="StartDate" value="@i.StartDate?.ToString("yyyy-MM-dd")" class="@Forms.Invalid(e, "StartDate")" />@Forms.Error(e, "StartDate")</label>
+            <label class="field"><span>Kết thúc</span><input type="date" name="EndDate" value="@i.EndDate?.ToString("yyyy-MM-dd")" class="@Forms.Invalid(e, "EndDate")" />@Forms.Error(e, "EndDate")</label>
+            <label class="field"><span>Giới hạn lượt dùng</span><span class="suffix"><input name="UsageLimit" value="@i.UsageLimit" inputmode="numeric" placeholder="Không giới hạn" class="@Forms.Invalid(e, "UsageLimit")" /><span class="unit">lượt</span></span>@Forms.Error(e, "UsageLimit")</label>
+        </div>
+    </div>
+
+    <div class="form-actions">
+        <a class="btn" asp-action="Index">Huỷ</a>
+        <button class="btn btn-primary" type="submit">@(editing ? "Lưu thay đổi" : "Tạo khuyến mãi")</button>
+    </div>
+</form>

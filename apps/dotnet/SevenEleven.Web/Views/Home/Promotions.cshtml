@@ -1,0 +1,277 @@
+@using SevenEleven.Core.Models
+@using SevenEleven.Core.Services
+@using SevenEleven.Web.Infrastructure
+@using SevenEleven.Web.Models.Shop
+@model PromotionsModel
+@{
+    var now = Model.Now;
+    var picked = Model.Selected;
+    var customer = Model.Customer;
+    var here = ShopUrls.Promotions;
+    (string Id, string Label, string Icon)[] sections =
+    [
+        ("flash-sale", "Flash sale hôm nay", "zap"),
+        ("ma-giam-gia", "Mã giảm giá", "ticket-percent"),
+        ("mua-kem-co-qua", "Mua kèm có quà", "gift"),
+        ("uu-dai-thanh-vien", "Ưu đãi thành viên", "crown"),
+    ];
+    string SlotIcon(FlashSlot s) => s.Start.Hour < 11 ? "sunrise" : s.Start.Hour < 17 ? "sun" : "moon";
+    (string Label, string Tone) StateOf(FlashSlot s) => s.State switch
+    {
+        SlotState.Live => ("Đang diễn ra", "danger"),
+        SlotState.Upcoming => ("Sắp diễn ra", "info"),
+        _ => ("Đã kết thúc", "neutral"),
+    };
+}
+<div class="stack-10">
+    <header class="phero">
+        <div class="phero-bg" aria-hidden="true"></div>
+        <div class="phero-glow" aria-hidden="true"></div>
+        <p class="phero-date">@Fmt.LongDate(now)</p>
+        <h1 class="phero-title headline">Flash sale &amp; ưu đãi</h1>
+        <p class="phero-text">Giá sốc theo khung giờ mỗi ngày, mã giảm giá cho đơn online, quà tặng khi mua kèm và voucher đồ uống cho thành viên.</p>
+        <nav aria-label="Các mục ưu đãi">
+            <ul class="phero-nav">
+                @foreach (var (id, label, icon) in sections)
+                {
+                    <li><a href="#@id">@ShopIcons.Svg(icon, 16) @label</a></li>
+                }
+            </ul>
+        </nav>
+    </header>
+
+    @* a) Khung giờ flash sale hôm nay *@
+    <section id="flash-sale" class="stack anchor">
+        <div class="sec-row">
+            <div>
+                <h2 class="sec-title">@ShopIcons.Svg("zap", 20, "i-fill text-red") Flash sale hôm nay</h2>
+                <p class="sec-sub">Mỗi khung giờ giảm giá một nhóm sản phẩm, áp dụng cho đơn online và mua tại cửa hàng.</p>
+            </div>
+            <p class="sec-note">@ShopIcons.Svg("clock", 16) Bây giờ là <span class="tabular strong ink">@Fmt.Time(now)</span></p>
+        </div>
+
+        @if (Model.Slots.Count == 0 || picked is null)
+        {
+            <partial name="_Empty" model="@(new EmptyState("zap", "Hôm nay chưa có khung giờ flash sale", "Các chương trình giá sốc sẽ được cập nhật tại đây, bạn quay lại sau nhé."))" />
+        }
+        else
+        {
+            <ol class="slots" aria-label="Khung giờ flash sale">
+                @foreach (var s in Model.Slots)
+                {
+                    var (stateLabel, tone) = StateOf(s);
+                    var on = s.Promotion.Id == picked.Promotion.Id;
+                    <li>
+                        <a class="slot @(on ? "selected" : null) slot-@s.State.ToString().ToLowerInvariant()" href="?khung=@s.Promotion.Id#flash-sale"
+                           data-switch="slot:@s.Promotion.Id" data-param="khung" aria-pressed="@(on ? "true" : "false")">
+                            <span class="slot-top">
+                                <span class="slot-ic">@ShopIcons.Svg(SlotIcon(s), 20)</span>
+                                @Tones.Badge(tone, stateLabel)
+                            </span>
+                            <span class="slot-window tabular">@s.Window</span>
+                            <span class="slot-name">@s.Promotion.Name <span class="pct">-@s.Promotion.Value%</span></span>
+                            <span class="slot-desc">@s.Promotion.Description</span>
+                            <span class="slot-foot">
+                                @if (s.State == SlotState.Live)
+                                {
+                                    var left = Fmt.SecondsLeft(s.End, now);
+                                    <span class="cd cd-sm muted" data-left="@left" data-reload>Kết thúc sau <b data-clock>@Fmt.Clock(left)</b></span>
+                                }
+                                else if (s.State == SlotState.Upcoming && s.NextStart is DateTime opens)
+                                {
+                                    <span class="muted">Bắt đầu sau <span class="strong ink" data-left="@Fmt.SecondsLeft(opens, now)" data-duration-text data-reload><span data-clock>@Fmt.DurationUntil(opens, now)</span></span></span>
+                                }
+                                else
+                                {
+                                    <span class="muted">@(s.NextStart is null ? "Đã kết thúc" : $"Mở lại: {s.OpensLabel(now, compact: true)}")</span>
+                                }
+                            </span>
+                        </a>
+                    </li>
+                }
+            </ol>
+
+            @foreach (var s in Model.Slots)
+            {
+                var list = Model.SlotProducts[s.Promotion.Id];
+                <div data-panel="slot:@s.Promotion.Id" hidden="@(s.Promotion.Id != picked.Promotion.Id)">
+                    <div class="sec-head">
+                        <h3 class="sub-h strong">Sản phẩm khung giờ @s.Promotion.Name</h3>
+                        <span class="sec-note">@list.Count sản phẩm · giảm @s.Promotion.Value%</span>
+                    </div>
+                    @if (s.State != SlotState.Live)
+                    {
+                        <p class="info-note">
+                            @(s.State == SlotState.Upcoming
+                                ? $"Giá flash sale áp dụng từ {s.Window}. Bạn vẫn có thể mua với giá thường ngay bây giờ."
+                                : $"Khung giờ hôm nay đã kết thúc{(s.NextStart is DateTime n ? $", mở lại lúc {Fmt.Time(n)} ngày mai" : "")}. Giá hiển thị là giá thường.")
+                        </p>
+                    }
+                    @if (list.Count > 0)
+                    {
+                        <partial name="_ProductGrid" model="list" />
+                    }
+                    else
+                    {
+                        <partial name="_Empty" model="@(new EmptyState("zap", "Khung giờ này tạm hết sản phẩm"))" />
+                    }
+                </div>
+            }
+        }
+    </section>
+
+    @* b) Mã giảm giá cho đơn online *@
+    <section id="ma-giam-gia" class="stack-4 anchor">
+        <div>
+            <h2 class="sec-title">@ShopIcons.Svg("ticket-percent", 20, "text-brand") Mã giảm giá</h2>
+            <p class="sec-sub">Nhập mã ở bước đặt hàng, hoặc bấm “Dùng ngay” để gắn mã vào giỏ hàng. Mỗi đơn dùng một mã.</p>
+        </div>
+        @if (Model.Codes.Count == 0)
+        {
+            <partial name="_Empty" model="@(new EmptyState("ticket-percent", "Hiện chưa có mã giảm giá cho đơn online", "Theo dõi flash sale và ưu đãi thành viên bên dưới nhé."))" />
+        }
+        else
+        {
+            <div class="tickets">
+                @foreach (var promo in Model.Codes)
+                {
+                    var upcoming = PricingService.EffectiveStatus(promo, now) == PromotionStatus.Scheduled;
+                    var exhausted = promo.UsageLimit is int limit && promo.UsageCount >= limit;
+                    var stub = ShopPromos.Stub(promo);
+                    var tiers = PricingService.Tiers(promo);
+                    var tierLocked = tiers.Length > 0;
+                    var mismatch = tierLocked && customer is not null && !tiers.Contains(customer.Tier);
+                    var categoryNames = PricingService.Split(promo.CategoryIds).Select(id => Model.Categories.FirstOrDefault(x => x.Id == id)?.Name).OfType<string>().ToList();
+                    <article class="ticket @(upcoming || exhausted ? "muted-ticket" : null)">
+                        <div class="ticket-stub @(upcoming || exhausted ? "grey" : null)">
+                            <span class="ticket-k">Giảm</span>
+                            <span class="ticket-v headline">@stub.Value</span>
+                            @if (stub.Cap is string cap)
+                            {
+                                <span class="ticket-cap">@cap</span>
+                            }
+                            <span class="notch top" aria-hidden="true"></span>
+                            <span class="notch bottom" aria-hidden="true"></span>
+                        </div>
+                        <div class="ticket-body">
+                            <div class="ticket-head">
+                                <div class="min-w-0">
+                                    <h3 class="strong">@promo.Name</h3>
+                                    <p class="small muted">@promo.Description</p>
+                                </div>
+                                @if (upcoming)
+                                {
+                                    @Tones.Badge("info", "Sắp diễn ra")
+                                }
+                                @if (exhausted)
+                                {
+                                    @Tones.Badge("neutral", "Hết lượt")
+                                }
+                            </div>
+                            <ul class="ticket-conds">
+                                <li>@ShopIcons.Svg("receipt-text", 16) <span>@(promo.MinOrderValue is int min && min > 0 ? $"Đơn tối thiểu {Fmt.Vnd(min)}" : "Không yêu cầu giá trị tối thiểu")</span></li>
+                                <li>
+                                    @ShopIcons.Svg("crown", 16)
+                                    @if (tierLocked)
+                                    {
+                                        <span class="tier-row">Hạng áp dụng: @foreach (var t in tiers) {<span class="@TierStyle.Chip(t) chip-sm">@TierStyle.Label(t)</span>}</span>
+                                    }
+                                    else
+                                    {
+                                        <span>Áp dụng cho mọi khách hàng</span>
+                                    }
+                                </li>
+                                <li>@ShopIcons.Svg("tag", 16) <span>@(categoryNames.Count > 0 ? $"Áp dụng cho {string.Join(", ", categoryNames)}" : "Áp dụng cho toàn bộ sản phẩm")</span></li>
+                                <li>@ShopIcons.Svg("calendar-clock", 16) <span>@(upcoming ? $"Từ {Fmt.Date(promo.StartsAt)} đến {Fmt.Date(promo.EndsAt)}" : $"Hạn dùng đến {Fmt.Date(promo.EndsAt)}")</span></li>
+                                <li>@ShopIcons.Svg("ticket", 16) <span>@(promo.UsageLimit is int lim ? exhausted ? "Đã hết lượt sử dụng" : $"Còn {Fmt.Num(lim - promo.UsageCount)} lượt" : "Không giới hạn lượt dùng")</span></li>
+                            </ul>
+                            <div class="ticket-actions">
+                                <button type="button" class="code-btn" data-copy="@promo.Code" aria-label="Sao chép mã @promo.Code">@promo.Code <span class="copy-ic">@ShopIcons.Svg("copy", 16)</span></button>
+                                @if (!upcoming && !exhausted)
+                                {
+                                    <form method="post" asp-controller="Cart" asp-action="AttachCode" data-ajax>
+                                        <input type="hidden" name="code" value="@promo.Code" />
+                                        <input type="hidden" name="returnUrl" value="@here" />
+                                        <button type="submit" class="btn btn-outline btn-sm" disabled="@mismatch">Dùng ngay</button>
+                                    </form>
+                                }
+                                @if (tierLocked && customer is null && !upcoming)
+                                {
+                                    <a class="link small" href="@ShopUrls.SignInNext(here)">Đăng nhập để dùng mã thành viên</a>
+                                }
+                                @if (mismatch)
+                                {
+                                    <span class="small muted">Hạng @TierStyle.Label(customer!.Tier) của bạn chưa áp dụng mã này</span>
+                                }
+                            </div>
+                        </div>
+                    </article>
+                }
+            </div>
+        }
+    </section>
+
+    @* c) Mua kèm có quà *@
+    <section id="mua-kem-co-qua" class="stack-4 anchor">
+        <div>
+            <h2 class="sec-title">@ShopIcons.Svg("gift", 20, "text-orange") Mua kèm có quà</h2>
+            <p class="sec-sub">Quà tặng được trừ thẳng vào giỏ hàng khi bạn chọn đủ số lượng cùng một sản phẩm.</p>
+        </div>
+        @if (Model.Bundles.Count == 0)
+        {
+            <partial name="_Empty" model="@(new EmptyState("gift", "Chưa có chương trình mua kèm có quà", "Các ưu đãi mua kèm mới sẽ xuất hiện tại đây."))" />
+        }
+        else
+        {
+            @foreach (var (promo, products) in Model.Bundles)
+            {
+                <div class="bundle">
+                    <div class="bundle-head">
+                        <span class="bundle-tag headline">Mua @promo.BuyQuantity tặng @promo.GetQuantity</span>
+                        <div class="min-w-0">
+                            <h3 class="strong">@promo.Name</h3>
+                            <p class="small muted">@promo.Description Áp dụng đến @Fmt.Date(promo.EndsAt).</p>
+                        </div>
+                    </div>
+                    <partial name="_ProductRail" model="products" />
+                </div>
+            }
+        }
+    </section>
+
+    @* d) Voucher đồ uống thành viên *@
+    @if (Model.MemberVoucher is not null)
+    {
+        <section id="uu-dai-thanh-vien" class="member-deal anchor">
+            <div class="member-deal-bg" aria-hidden="true"></div>
+            <div class="member-deal-grid">
+                <div>
+                    <p class="member-deal-k">@ShopIcons.Svg("crown", 16) Ưu đãi thành viên</p>
+                    <h2 class="headline member-deal-title">Voucher đồ uống mỗi tháng</h2>
+                    <p class="member-deal-text">Giảm thẳng vào mỗi ly trà sữa, trà trái cây và cà phê pha tại cửa hàng, tối đa @MembershipService.MaxDrinkVouchersPerOrder ly mỗi đơn. Voucher tự áp dụng khi bạn đăng nhập và đặt hàng.</p>
+                    <div class="member-deal-actions">
+                        <a class="btn btn-white" href="@ShopUrls.Membership">Xem chương trình thành viên @ShopIcons.Svg("arrow-right", 16)</a>
+                        <a class="btn btn-ghost-white" href="@ShopUrls.Category("tra-sua")">Đặt đồ uống</a>
+                    </div>
+                </div>
+                <ul class="member-tiles">
+                    @foreach (var t in MembershipService.Order)
+                    {
+                        var info = MembershipService.Info(t);
+                        var mine = customer?.Tier == t;
+                        <li class="@(mine ? "mine" : null)">
+                            @if (mine)
+                            {
+                                <span class="mine-tag">Hạng của bạn</span>
+                            }
+                            <span class="@TierStyle.Chip(t)">@info.Label</span>
+                            <span class="member-tile-v headline">-@Fmt.Num(info.DrinkVoucher)<small> ₫</small></span>
+                            <span class="xs muted">mỗi ly</span>
+                            <span class="member-tile-n">@info.VouchersPerMonth voucher/tháng</span>
+                        </li>
+                    }
+                </ul>
+            </div>
+        </section>
+    }
+</div>

@@ -1,0 +1,71 @@
+@using SevenEleven.Web.Areas.Admin.Controllers
+@model BoardModel
+@{
+    var here = Context.Request.Path + Context.Request.QueryString;
+}
+<div class="page-head" data-autorefresh="30">
+    <div>
+        <h1>Đơn hàng</h1>
+        <p>@Model.Orders.Count đơn online đang chạy · @Model.CompletedToday đơn đã giao xong hôm nay · tự làm mới mỗi 30 giây</p>
+    </div>
+    <partial name="_Tabs" model="@("board")" />
+</div>
+
+<div class="board">
+    @foreach (var lane in OrdersController.BoardLanes)
+    {
+        var cards = Model.Orders.Where(o => o.Status == lane).ToList();
+        <section class="lane" aria-label="@Labels.Status(lane)">
+            <div class="lane-head"><span class="badge @Labels.Tone(lane)">@Labels.Status(lane)</span><span class="muted tabular">@cards.Count</span></div>
+            @if (cards.Count == 0)
+            {
+                <p class="empty" style="padding:16px 4px">Không có đơn nào.</p>
+            }
+            @foreach (var o in cards)
+            {
+                var next = OrderFlow.Next(o.Status);
+                var late = o.Delivery is { } d && d.Eta < Model.Now;
+                var waited = (int)(Model.Now - o.CreatedAt).TotalMinutes;
+                <article class="ticket @(late ? "late" : null)">
+                    <div class="ticket-head">
+                        <a class="code-link" asp-action="Detail" asp-route-id="@o.Code">@o.Code</a>
+                        <span class="cell-sub">@TimeText.Relative(o.CreatedAt, Model.Now)</span>
+                    </div>
+                    <div class="ticket-meta">
+                        <span><b style="color:var(--fg)">@(o.Customer?.FullName ?? o.Delivery?.Recipient)</b>@(Model.IsChain ? $" · CH {o.Store?.Code}" : "")</span>
+                        <span>@o.Items.Sum(i => i.Quantity) món · <b style="color:var(--fg)">@Money.Format(o.Total)</b> · @(o.PaymentStatus == PaymentStatus.Paid ? "đã trả trước" : "thu khi giao")</span>
+                        @if (o.Delivery is { } dv)
+                        {
+                            <span>@dv.Address</span>
+                            <span class="@(late ? "neg" : null)">Hẹn giao @dv.Eta.ToString("HH:mm")@(late ? $" · trễ {(int)(Model.Now - dv.Eta).TotalMinutes} phút" : "")@(dv.DistanceKm is double km ? $" · {DeliveryService.FormatDistance(km)}" : "")</span>
+                            @if (o.Status == OrderStatus.Delivering && dv.ShipperName is string rider)
+                            {
+                                <span>Giao: @rider</span>
+                            }
+                            @if (dv.Note is string note)
+                            {
+                                <span>Ghi chú: @note</span>
+                            }
+                        }
+                    </div>
+                    <div class="ticket-actions">
+                        @if (next is OrderStatus to)
+                        {
+                            <form method="post" asp-action="Advance">
+                                <input type="hidden" name="id" value="@o.Id" />
+                                <input type="hidden" name="to" value="@to" />
+                                <input type="hidden" name="returnUrl" value="@here" />
+                                <button class="btn btn-sm btn-primary btn-block" type="submit">@OrderFlow.ActionLabel(to)</button>
+                            </form>
+                        }
+                        <a class="btn btn-sm" asp-action="Detail" asp-route-id="@o.Code">Chi tiết</a>
+                    </div>
+                    @if (o.Status == OrderStatus.Pending && waited >= 5)
+                    {
+                        <span class="cell-sub neg">Khách đã chờ @waited phút</span>
+                    }
+                </article>
+            }
+        </section>
+    }
+</div>

@@ -1,0 +1,174 @@
+@using SevenEleven.Web.Areas.Admin.Controllers
+@model ProductFormModel
+@{
+    var i = Model.Input;
+    var e = Model.Errors;
+    var p = Model.Product;
+    var isNew = p is null;
+    var stockTotal = Model.Stock.Sum(s => s.Quantity);
+    var needRefill = Model.Stock.Count(s => s.Quantity <= s.MinQuantity);
+}
+<div class="page-head">
+    <div>
+        <h1>@(isNew ? "Thêm sản phẩm" : p!.Name)</h1>
+        <p>@(isNew ? "Sản phẩm mới được thêm vào danh mục của toàn chuỗi, tồn kho ban đầu bằng 0." : $"{p!.Sku} · {p.Barcode}")</p>
+    </div>
+    <a class="btn" asp-action="Index">← Danh sách sản phẩm</a>
+</div>
+
+@if (!Model.CanEdit && p is not null)
+{
+    var margin = p.Price > 0 ? (p.Price - p.CostPrice) / (double)p.Price : 0;
+    <section class="panel" style="display:grid;gap:14px">
+        <div class="toolbar">
+            <span class="badge @(p.IsActive ? "fresh" : "neutral")">@(p.IsActive ? "Đang bán" : "Ngừng bán")</span>
+            @if (p.IsNew) { <span class="badge brand">Sản phẩm mới</span> }
+            @if (p.AgeRestricted) { <span class="badge neutral">Giới hạn 18+</span> }
+        </div>
+        <div class="mini">
+            <div><small>Giá bán</small><b>@Money.Format(p.Price)</b>@if (p.CompareAtPrice > p.Price) { <small>-@(Math.Round((p.CompareAtPrice.Value - p.Price) * 100.0 / p.CompareAtPrice.Value))%</small> }</div>
+            <div><small>Giá vốn</small><b>@Money.Format(p.CostPrice)</b></div>
+            <div><small>Biên lợi nhuận</small><b>@Money.Percent(margin)</b><small>Lãi @Money.Format(p.Price - p.CostPrice) / @p.Unit</small></div>
+        </div>
+        <dl class="kv">
+            <dt>Danh mục</dt><dd>@p.Category?.Name</dd>
+            <dt>Nhóm hàng</dt><dd>@p.Subcategory?.Name</dd>
+            <dt>Thương hiệu</dt><dd>@p.Brand</dd>
+            <dt>Xuất xứ</dt><dd>@p.Origin</dd>
+            <dt>Đơn vị tính</dt><dd>@p.Unit</dd>
+            <dt>Hạn dùng sau khi nhập</dt><dd>@(p.ShelfLifeDays is int d ? $"{d} ngày" : "Dài hạn")</dd>
+            <dt>Mã SKU</dt><dd>@p.Sku</dd>
+            <dt>Mã vạch</dt><dd>@p.Barcode</dd>
+            <dt>Ngày tạo</dt><dd>@p.CreatedAt.ToString("dd/MM/yyyy")</dd>
+        </dl>
+        <p class="muted" style="margin:0">Chỉ quản trị chuỗi được sửa thông tin và giá sản phẩm.</p>
+    </section>
+}
+else
+{
+    <form method="post" asp-action="Save" class="panel form" style="max-width:920px" data-product-form>
+        <input type="hidden" name="Id" value="@i.Id" />
+        @if (e.Count > 0)
+        {
+            <div class="flash flash-error">Kiểm tra lại các ô được đánh dấu đỏ.</div>
+        }
+        <div class="form-section">
+            <h3>Thông tin chung</h3>
+            <div class="form-grid">
+                <label class="field full"><span>Tên sản phẩm</span>
+                    <input name="Name" value="@i.Name" placeholder="VD: Trà Sữa Oolong Rang size L" class="@Forms.Invalid(e, "Name")" maxlength="120" />
+                    @Forms.Error(e, "Name")
+                </label>
+                <label class="field"><span>Danh mục</span>
+                    <select name="CategoryId" class="@Forms.Invalid(e, "CategoryId")" data-category-select>
+                        <option value="">Chọn danh mục</option>
+                        @foreach (var c in Model.Categories)
+                        {
+                            <option value="@c.Id" selected="@(c.Id == i.CategoryId)" data-age="@(c.AgeRestricted ? "1" : "0")">@c.Name</option>
+                        }
+                    </select>
+                    @Forms.Error(e, "CategoryId")
+                </label>
+                <label class="field"><span>Nhóm hàng</span>
+                    <select name="SubcategoryId" class="@Forms.Invalid(e, "SubcategoryId")" data-subcategory-select>
+                        <option value="">Chọn nhóm hàng</option>
+                        @foreach (var c in Model.Categories)
+                        {
+                            foreach (var sub in c.Subcategories.OrderBy(x => x.Name))
+                            {
+                                <option value="@sub.Id" data-category="@c.Id" selected="@(sub.Id == i.SubcategoryId)">@sub.Name</option>
+                            }
+                        }
+                    </select>
+                    @Forms.Error(e, "SubcategoryId")
+                </label>
+                <label class="field"><span>Thương hiệu</span><input name="Brand" value="@i.Brand" placeholder="VD: 7-Select" class="@Forms.Invalid(e, "Brand")" />@Forms.Error(e, "Brand")</label>
+                <label class="field"><span>Xuất xứ</span><input name="Origin" value="@i.Origin" class="@Forms.Invalid(e, "Origin")" />@Forms.Error(e, "Origin")</label>
+                <label class="field"><span>Đơn vị tính</span>
+                    <select name="Unit" class="@Forms.Invalid(e, "Unit")">
+                        @foreach (var u in ProductAdminService.Units)
+                        {
+                            <option value="@u" selected="@(u == i.Unit)">@(char.ToUpper(u[0]) + u[1..])</option>
+                        }
+                    </select>
+                    @Forms.Error(e, "Unit")
+                </label>
+                <label class="field"><span>Hạn dùng sau khi nhập</span>
+                    <span class="suffix"><input name="ShelfLifeDays" value="@i.ShelfLifeDays" inputmode="numeric" placeholder="Để trống nếu dài hạn" class="@Forms.Invalid(e, "ShelfLifeDays")" /><span class="unit">ngày</span></span>
+                    @Forms.Error(e, "ShelfLifeDays")
+                </label>
+            </div>
+        </div>
+
+        <div class="form-section">
+            <h3>Giá</h3>
+            <p>Số nguyên, đơn vị đồng. Giá gốc chỉ nhập khi sản phẩm đang giảm giá.</p>
+            <div class="form-grid" style="grid-template-columns:repeat(3,minmax(0,1fr))">
+                <label class="field"><span>Giá bán</span><span class="suffix"><input name="Price" value="@i.Price" inputmode="numeric" placeholder="0" class="@Forms.Invalid(e, "Price")" data-price /><span class="unit">₫</span></span>@Forms.Error(e, "Price")</label>
+                <label class="field"><span>Giá gốc</span><span class="suffix"><input name="CompareAtPrice" value="@i.CompareAtPrice" inputmode="numeric" placeholder="Không giảm" class="@Forms.Invalid(e, "CompareAtPrice")" data-compare /><span class="unit">₫</span></span>@Forms.Error(e, "CompareAtPrice")</label>
+                <label class="field"><span>Giá vốn</span><span class="suffix"><input name="CostPrice" value="@i.CostPrice" inputmode="numeric" placeholder="0" class="@Forms.Invalid(e, "CostPrice")" data-cost /><span class="unit">₫</span></span>@Forms.Error(e, "CostPrice")</label>
+            </div>
+            <p class="flash flash-warn" data-margin style="margin:0">Nhập giá bán và giá vốn để xem lãi gộp.</p>
+        </div>
+
+        <div class="form-section">
+            <h3>Mã hàng & hình ảnh</h3>
+            <div class="form-grid">
+                <label class="field"><span>Mã SKU</span>
+                    <span class="inline-form"><input name="Sku" id="sku" value="@i.Sku" class="@Forms.Invalid(e, "Sku")" maxlength="20" />
+                    @if (Model.Product is null) { <button type="button" class="btn btn-sm" data-fill="#sku" data-value="@i.Sku">Gợi ý</button> }</span>
+                    @Forms.Error(e, "Sku")
+                </label>
+                <label class="field"><span>Mã vạch (EAN-13)</span>
+                    <span class="inline-form"><input name="Barcode" id="barcode" value="@i.Barcode" maxlength="13" inputmode="numeric" placeholder="13 chữ số" class="@Forms.Invalid(e, "Barcode")" />
+                    @if (Model.Product is null) { <button type="button" class="btn btn-sm" data-ean13="#barcode">Tạo mã</button> }</span>
+                    @Forms.Error(e, "Barcode")
+                </label>
+                <label class="field full"><span>Đường dẫn ảnh <small class="help">Ảnh vuông, nền trắng. Xem trước hiển thị bên trái.</small></span>
+                    <span style="display:flex;gap:10px;align-items:center">
+                        <img class="preview-img" src="@(string.IsNullOrWhiteSpace(i.Image) ? null : i.Image)" alt="" data-image-preview hidden="@string.IsNullOrWhiteSpace(i.Image)" />
+                        <input name="Image" value="@i.Image" placeholder="https://…" class="@Forms.Invalid(e, "Image")" style="flex:1" data-image-input />
+                    </span>
+                    @Forms.Error(e, "Image")
+                </label>
+            </div>
+        </div>
+
+        <div class="form-section">
+            <h3>Hiển thị & bán hàng</h3>
+            <label class="switch-row"><input type="checkbox" name="IsActive" value="true" checked="@i.IsActive" /><span><b>Đang bán</b><small>Tắt để ngừng bán trên web và tại quầy. Tồn kho vẫn được giữ.</small></span></label>
+            <label class="switch-row"><input type="checkbox" name="IsNew" value="true" checked="@i.IsNew" /><span><b>Sản phẩm mới</b><small>Gắn nhãn MỚI trên thẻ sản phẩm.</small></span></label>
+            <label class="switch-row"><input type="checkbox" name="AgeRestricted" value="true" checked="@i.AgeRestricted" data-age-box /><span><b>Giới hạn 18+</b><small>Yêu cầu xác nhận tuổi khi thêm vào giỏ hoặc bán tại quầy.</small></span></label>
+        </div>
+
+        <div class="form-actions">
+            <a class="btn" asp-action="Index">Huỷ</a>
+            <button class="btn btn-primary" type="submit">@(Model.Product is null ? "Thêm sản phẩm" : "Lưu thay đổi")</button>
+        </div>
+    </form>
+}
+
+@if (p is not null)
+{
+    <section class="panel flush" style="max-width:920px">
+        <div class="panel-head pad"><div><h2>Tồn kho theo cửa hàng</h2><p>Số lượng hiện có / định mức tối thiểu ở từng cửa hàng.</p></div></div>
+        <div class="table-wrap">
+            <table class="table">
+                <thead><tr><th>Cửa hàng</th><th class="num">Tồn</th><th class="num">Định mức</th><th>Trạng thái</th></tr></thead>
+                <tbody>
+                    @foreach (var s in Model.Stock)
+                    {
+                        var state = InventoryService.StateOf(s.Quantity, s.MinQuantity);
+                        <tr>
+                            <td>@s.Store?.Code – @s.Store?.Name @(s.Store?.Status == StoreStatus.Maintenance ? "(Bảo trì)" : s.Store?.Status == StoreStatus.Closed ? "(Đã đóng)" : "")</td>
+                            <td class="num">@s.Quantity</td>
+                            <td class="num">@s.MinQuantity</td>
+                            <td><span class="badge @(state == StockState.Out ? "danger" : state == StockState.Low ? "warning" : "fresh")">@InventoryService.Label(state)</span></td>
+                        </tr>
+                    }
+                </tbody>
+                <tfoot><tr><td>Toàn chuỗi</td><td class="num">@Money.FormatNumber(stockTotal)</td><td colspan="2">@(needRefill > 0 ? $"{needRefill} cửa hàng cần bổ sung" : "Đủ hàng ở mọi cửa hàng")</td></tr></tfoot>
+            </table>
+        </div>
+    </section>
+}

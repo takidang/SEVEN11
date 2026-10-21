@@ -1,0 +1,556 @@
+@using SevenEleven.Core.Models
+@using SevenEleven.Core.Services
+@using SevenEleven.Web.Infrastructure
+@using SevenEleven.Web.Models.Shop
+@model CartModel
+@{
+    var p = Model.Pricing;
+    var customer = Model.Customer;
+    var store = Model.Store;
+    var address = Model.Delivery.Address;
+    var code = Model.Code;
+    var signIn = ShopUrls.SignInNext(ShopUrls.Cart);
+    var diamond = MembershipService.Info(MemberTier.Diamond);
+    var usable = Model.Vouchers.Where(v => v.Usable).ToList();
+    var unusable = Model.Vouchers.Where(v => !v.Usable).ToList();
+    var bestId = usable.Count > 1 && usable[0].Saving > 0 ? usable[0].Promo.Id : null;
+    var codeDiscount = p.Discounts.FirstOrDefault(d => d.Kind == DiscountKind.Code);
+    var memberDiscount = p.Discounts.FirstOrDefault(d => d.Kind == DiscountKind.Member);
+    var draft = Model.Draft;
+    var defaultAddress = customer?.Addresses.OrderByDescending(a => a.IsDefault).FirstOrDefault();
+    var recipientValue = draft.Recipient ?? address?.Recipient ?? customer?.FullName ?? "";
+    var phoneValue = draft.Phone ?? address?.Phone ?? customer?.Phone ?? "";
+    var payment = draft.Payment is "Ewallet" or "Card" ? draft.Payment : "Cod";
+    var errors = Model.Errors;
+    var slotFrom = Model.Now.AddMinutes(14);
+    var slotTo = Model.Now.AddMinutes(24);
+    var payable = p.Total - p.ShippingFee;
+    var shipMissing = Math.Max(0, DeliveryService.FreeShippingFrom - payable);
+    var chosen = usable.FirstOrDefault(v => v.Promo.Code == code);
+    string DiscountLabel(AppliedDiscount d) => d.Kind == DiscountKind.FlashSale ? $"Flash sale {d.Label}" : d.Label;
+    (string Icon, string Label, string Hint)[] methods =
+    [
+        ("banknote", "Cod", "Trả tiền mặt hoặc chuyển khoản cho nhân viên giao hàng"),
+        ("wallet", "Ewallet", "Thanh toán ngay bằng ví điện tử đã liên kết"),
+        ("credit-card", "Card", "Thẻ ATM nội địa hoặc thẻ quốc tế"),
+    ];
+}
+
+@if (Model.Rows.Count == 0)
+{
+    <div class="stack-8">
+        <div class="empty boxed cart-empty panel">
+            <span class="empty-ic">@ShopIcons.Svg("shopping-bag", 24)</span>
+            <div>
+                <h1 class="cart-empty-title">Giỏ hàng của bạn đang trống</h1>
+                <p class="empty-desc">Mở cửa 24 giờ, giao hàng 24 phút – chọn vài món yêu thích rồi quay lại đây để đặt hàng nhé.</p>
+                @if (code is not null)
+                {
+                    <p class="empty-desc">Mã <b class="mono">@code</b> đã gắn sẵn, thêm hàng vào giỏ là được tính giảm.</p>
+                }
+            </div>
+            <a class="btn" href="/">Mua sắm ngay</a>
+        </div>
+        @if (Model.Discounted.Count > 0)
+        {
+            <section>
+                <div class="sec-head">
+                    <h2><a href="@ShopUrls.Promotions">Đang giảm giá</a></h2>
+                    <a class="sec-all" href="@ShopUrls.Promotions">Xem tất cả @ShopIcons.Svg("chevron-right", 16)</a>
+                </div>
+                <partial name="_ProductRail" model="Model.Discounted" />
+            </section>
+        }
+    </div>
+    return;
+}
+
+<div class="stack cart-page" data-placing>
+    <div class="cart-top">
+        <div>
+            <h1 class="page-title">Giỏ hàng</h1>
+            <p class="sec-sub">@Model.Units sản phẩm · giao nhanh trong 24 phút</p>
+        </div>
+        <a class="link cart-continue" href="/">@ShopIcons.Svg("chevron-left", 16) Tiếp tục mua sắm</a>
+    </div>
+
+    @if (customer is null)
+    {
+        <div class="guest-banner">
+            <span class="guest-ic">@ShopIcons.Svg("gift", 20)</span>
+            <div class="min-w-0 flex-1">
+                <p class="strong small">Đăng nhập để đặt hàng và nhận ưu đãi thành viên</p>
+                <p class="muted xs">Giảm đến @Fmt.Vnd(diamond.DrinkVoucher) mỗi ly đồ uống, lưu địa chỉ giao hàng và theo dõi đơn theo thời gian thực.</p>
+            </div>
+            <a class="btn btn-outline btn-sm" href="@signIn">Đăng nhập</a>
+        </div>
+    }
+
+    <form id="checkout" method="post" asp-controller="Cart" asp-action="Checkout" data-ajax data-draft-form></form>
+
+    <div class="cart-grid">
+        <div class="cart-main stack">
+            <section class="panel2" id="san-pham">
+                <div class="panel2-head">
+                    <h2 class="panel2-title">Sản phẩm <span class="muted fw-normal">(@Model.Units)</span></h2>
+                    <form method="post" asp-controller="Cart" asp-action="Clear" data-dialog-confirm data-dialog-tone="danger"
+                          data-dialog-title="Xoá toàn bộ giỏ hàng?" data-dialog-desc="@Model.Units sản phẩm, mã khuyến mãi và ghi chú đang có trong giỏ sẽ bị xoá."
+                          data-dialog-cancel="Giữ lại" data-dialog-ok="Xoá giỏ hàng">
+                        <button type="submit" class="btn btn-ghost btn-sm btn-danger-ghost">@ShopIcons.Svg("trash", 16) Xoá tất cả</button>
+                    </form>
+                </div>
+                <ul class="cart-lines">
+                    @foreach (var row in Model.Rows)
+                    {
+                        var product = row.Product;
+                        if (row.Priced is not { } line || product is null)
+                        {
+                            var name = product?.Name ?? "Sản phẩm không còn tồn tại";
+                            <li class="cart-line unavailable">
+                                @if (product is not null)
+                                {
+                                    <img class="cl-img dim" src="@ShopImages.Url(product.Image, 64)" alt="@product.Name" width="64" height="64" />
+                                }
+                                else
+                                {
+                                    <span class="cl-img placeholder">@ShopIcons.Svg("package-x", 24)</span>
+                                }
+                                <div class="min-w-0 flex-1">
+                                    <p class="cl-name muted">@name</p>
+                                    <p class="cl-warn red">Sản phẩm đã ngừng bán, không thể đặt</p>
+                                </div>
+                                <form method="post" asp-controller="Cart" asp-action="Remove" data-keep-scroll>
+                                    <input type="hidden" name="productId" value="@row.Line.ProductId" />
+                                    <button type="submit" class="btn btn-outline btn-sm">Xoá</button>
+                                </form>
+                            </li>
+                            continue;
+                        }
+                        var href = ShopUrls.Product(product.Slug);
+                        var flashPct = line.SalePrice < line.UnitPrice ? Fmt.DiscountPercent(line.SalePrice, line.UnitPrice) : null;
+                        int? compareAt = line.SalePrice < line.UnitPrice ? line.UnitPrice : product.CompareAtPrice is int c && c > line.UnitPrice ? c : null;
+                        var bundle = line.PromoLabel is string pl && pl.StartsWith("Mua") ? pl : null;
+                        var available = row.Available;
+                        var max = Math.Max(1, Math.Min(99, available));
+                        <li class="cart-line">
+                            <a href="@href" class="cl-img-link" tabindex="-1" aria-hidden="true"><img class="cl-img" src="@ShopImages.Url(product.Image, 96)" alt="" width="96" height="96" loading="lazy" /></a>
+                            <div class="cl-body">
+                                <div class="cl-top">
+                                    <a href="@href" class="cl-name">@product.Name</a>
+                                    <form method="post" asp-controller="Cart" asp-action="Remove" data-keep-scroll>
+                                        <input type="hidden" name="productId" value="@product.Id" />
+                                        <button type="submit" class="cl-trash" aria-label="Xoá @product.Name khỏi giỏ">@ShopIcons.Svg("trash", 16)</button>
+                                    </form>
+                                </div>
+                                <div class="cl-price">
+                                    <span class="strong">@Fmt.Vnd(line.SalePrice)</span>
+                                    @if (compareAt is int was)
+                                    {
+                                        <s class="muted">@Fmt.Vnd(was)</s>
+                                    }
+                                    <span class="muted">/ @product.Unit</span>
+                                    @if (flashPct is int fp)
+                                    {
+                                        <span class="pill-tag pill-flash">Flash sale -@fp%</span>
+                                    }
+                                    @if (bundle is not null)
+                                    {
+                                        <span class="pct">@bundle</span>
+                                    }
+                                    @if (product.AgeRestricted)
+                                    {
+                                        <span class="pill-tag pill-age">18+</span>
+                                    }
+                                </div>
+                                @if (available <= 0)
+                                {
+                                    <div class="cl-warn red">
+                                        <span>@ShopIcons.Svg("circle-alert", 14) Cửa hàng @store?.Code đã hết sản phẩm này</span>
+                                        <form method="post" asp-controller="Cart" asp-action="Remove" data-keep-scroll>
+                                            <input type="hidden" name="productId" value="@product.Id" />
+                                            <button type="submit" class="link-btn">Xoá khỏi giỏ</button>
+                                        </form>
+                                    </div>
+                                }
+                                else if (row.Line.Quantity > available)
+                                {
+                                    <div class="cl-warn warn">
+                                        <span>@ShopIcons.Svg("triangle-alert", 14) Cửa hàng @store?.Code chỉ còn @available @product.Unit</span>
+                                        <form method="post" asp-controller="Cart" asp-action="Update" data-keep-scroll>
+                                            <input type="hidden" name="productId" value="@product.Id" />
+                                            <input type="hidden" name="quantity" value="@available" />
+                                            <button type="submit" class="link-btn">Chỉ lấy @available</button>
+                                        </form>
+                                    </div>
+                                }
+                                @if (product.AgeRestricted)
+                                {
+                                    <p class="xs muted">Chỉ giao cho người từ đủ 18 tuổi – vui lòng chuẩn bị giấy tờ tuỳ thân khi nhận hàng.</p>
+                                }
+                                <div class="cl-bottom">
+                                    <div class="stepper">
+                                        <form method="post" asp-controller="Cart" asp-action="Update" data-keep-scroll>
+                                            <input type="hidden" name="productId" value="@product.Id" />
+                                            <input type="hidden" name="quantity" value="@(row.Line.Quantity - 1)" />
+                                            <button type="submit" aria-label="Giảm số lượng" disabled="@(row.Line.Quantity <= 1)">@ShopIcons.Svg("minus", 16)</button>
+                                        </form>
+                                        <span class="stepper-n tabular">@row.Line.Quantity</span>
+                                        <form method="post" asp-controller="Cart" asp-action="Update" data-keep-scroll>
+                                            <input type="hidden" name="productId" value="@product.Id" />
+                                            <input type="hidden" name="quantity" value="@(row.Line.Quantity + 1)" />
+                                            <button type="submit" class="inc" aria-label="Tăng số lượng" disabled="@(row.Line.Quantity >= max)">@ShopIcons.Svg("plus", 16)</button>
+                                        </form>
+                                    </div>
+                                    <div class="cl-total">
+                                        @if (line.LineDiscount > 0)
+                                        {
+                                            <s class="muted xs tabular">@Fmt.Vnd(line.LineSubtotal)</s>
+                                        }
+                                        <b class="tabular">@Fmt.Vnd(line.LineTotal)</b>
+                                    </div>
+                                </div>
+                            </div>
+                        </li>
+                    }
+                </ul>
+            </section>
+
+            @if (Model.Suggestions.Count > 0)
+            {
+                <section data-refresh-page>
+                    <div class="sec-head"><h2>Có thể bạn cần thêm</h2></div>
+                    <partial name="_ProductRail" model="Model.Suggestions" />
+                </section>
+            }
+
+            <section class="panel2" id="giao-hang">
+                <div class="panel2-head"><h2 class="panel2-title">Thông tin giao hàng</h2></div>
+                <div class="panel2-body stack-4">
+                    @if (store is not null)
+                    {
+                        <div class="store-line">
+                            <span class="row-ic tone-brand square">@ShopIcons.Svg("store", 20)</span>
+                            <div class="min-w-0 flex-1">
+                                <p class="strong small">Giao từ cửa hàng @store.Code – @store.Name</p>
+                                <p class="xs muted">
+                                    @store.Address, @store.Ward, @store.Province · Mở cửa @store.OpenHours@(Model.Delivery.DistanceKm is double km ? $" · cách {DeliveryService.FormatDistance(km)}" : "")
+                                </p>
+                                @if (Model.Delivery.OutOfRange)
+                                {
+                                    <p class="cl-warn warn">@ShopIcons.Svg("triangle-alert", 14) Địa chỉ này ngoài vùng giao @DeliveryService.RadiusKm.ToString("0") km, chưa đặt giao hàng được. Bạn có thể tới cửa hàng mua trực tiếp, đổi địa chỉ hoặc <a class="link" href="@ShopUrls.Stores">chọn cửa hàng khác</a>.</p>
+                                }
+                                @if (store.Status != StoreStatus.Active)
+                                {
+                                    <p class="cl-warn warn">@ShopIcons.Svg("triangle-alert", 14) Cửa hàng đang tạm ngưng nhận đơn, vui lòng chọn địa chỉ khác.</p>
+                                }
+                            </div>
+                        </div>
+                    }
+
+                    <div class="addr-box @(address is null ? "missing" : null)">
+                        @ShopIcons.Svg("map-pin", 20, "text-orange")
+                        <div class="min-w-0 flex-1">
+                            <p class="xs muted">Địa chỉ nhận hàng</p>
+                            @if (address is not null)
+                            {
+                                <p class="strong-500 small">@address.Line, @address.Ward, @address.Province</p>
+                            }
+                            else
+                            {
+                                <p class="strong-500 small warn-text">Chưa có địa chỉ giao hàng</p>
+                            }
+                        </div>
+                        @if (customer is null)
+                        {
+                            <a class="btn btn-outline btn-sm" href="@signIn">Nhập địa chỉ</a>
+                        }
+                        else if (customer.Addresses.Count == 0)
+                        {
+                            <a class="btn btn-outline btn-sm" href="/Account/Address?returnUrl=@Uri.EscapeDataString(ShopUrls.Cart)">Nhập địa chỉ</a>
+                        }
+                        else
+                        {
+                            <details class="addr-pick" data-dropdown>
+                                <summary class="btn btn-outline btn-sm">Thay đổi</summary>
+                                <div class="dropdown addr-menu">
+                                    <p class="dropdown-title">Chọn địa chỉ giao hàng</p>
+                                    @foreach (var a in customer.Addresses.OrderByDescending(a => a.IsDefault))
+                                    {
+                                        var on = a.Id == address?.Id;
+                                        <form method="post" asp-controller="Cart" asp-action="Address">
+                                            <input type="hidden" name="addressId" value="@a.Id" />
+                                            <input type="hidden" name="returnUrl" value="@ShopUrls.Cart" />
+                                            <button type="submit" class="dd-item deliver-opt @(on ? "active" : "")" aria-pressed="@(on ? "true" : "false")">
+                                                <b>@a.Label</b>
+                                                <small>@a.Line, @a.Ward, @a.Province</small>
+                                            </button>
+                                        </form>
+                                    }
+                                    <hr />
+                                    @if (address is not null)
+                                    {
+                                        <a href="/Account/Address?id=@address.Id&returnUrl=@Uri.EscapeDataString(ShopUrls.Cart)">@ShopIcons.Svg("pencil", 16) Sửa địa chỉ đang chọn</a>
+                                    }
+                                    <a class="deliver-add" href="/Account/Address?returnUrl=@Uri.EscapeDataString(ShopUrls.Cart)">@ShopIcons.Svg("plus", 16) Thêm địa chỉ mới</a>
+                                </div>
+                            </details>
+                        }
+                    </div>
+
+                    <div class="form-grid-2">
+                        <div class="field2">
+                            <label for="checkout-recipient">Người nhận</label>
+                            <input id="checkout-recipient" name="recipient" form="checkout" value="@recipientValue" autocomplete="name" placeholder="Họ và tên người nhận"
+                                   maxlength="80" data-draft="recipient" aria-invalid="@(errors?.Of("recipient") is null ? "false" : "true")" />
+                            @Forms.Error(errors, "recipient")
+                        </div>
+                        <div class="field2">
+                            <label for="checkout-phone">Số điện thoại</label>
+                            <input id="checkout-phone" name="phone" form="checkout" type="tel" inputmode="tel" value="@phoneValue" autocomplete="tel-national"
+                                   placeholder="Ví dụ: 0901 234 567" data-draft="phone" aria-invalid="@(errors?.Of("phone") is null ? "false" : "true")" />
+                            @Forms.Error(errors, "phone")
+                        </div>
+                    </div>
+
+                    <div class="field2">
+                        <label for="checkout-note">Ghi chú cho cửa hàng <span class="muted fw-normal">(không bắt buộc)</span></label>
+                        <textarea id="checkout-note" name="note" form="checkout" maxlength="@CartStore.NoteMaxLength" rows="2"
+                                  placeholder="Ví dụ: Gọi trước khi giao, không lấy ống hút" data-draft="note">@Model.Note</textarea>
+                        <span class="field-count" data-count-for="checkout-note"></span>
+                    </div>
+
+                    <div class="eta-line">
+                        @ShopIcons.Svg("bike", 20)
+                        <p><b>Giao ngay</b> · dự kiến <b class="tabular">@Fmt.Time(slotFrom) – @Fmt.Time(slotTo)</b></p>
+                    </div>
+                </div>
+            </section>
+
+            <section class="panel2">
+                <div class="panel2-head"><h2 class="panel2-title">Phương thức thanh toán</h2></div>
+                <div class="panel2-body">
+                    <div class="pay-grid" role="radiogroup" aria-label="Phương thức thanh toán">
+                        @foreach (var (icon, value, hint) in methods)
+                        {
+                            var id = "pay-" + value.ToLowerInvariant();
+                            <label class="pay-opt" for="@id">
+                                <input type="radio" id="@id" name="paymentMethod" value="@value" form="checkout" data-draft="paymentMethod" checked="@(payment == value)" />
+                                <span class="pay-text">
+                                    <span class="pay-title">@ShopIcons.Svg(icon, 16, "text-brand") @Labels.Payment(Enum.Parse<PaymentMethod>(value))</span>
+                                    <span class="xs muted">@hint</span>
+                                </span>
+                            </label>
+                        }
+                    </div>
+                </div>
+            </section>
+        </div>
+
+        <aside class="cart-side">
+            <section class="panel2">
+                <div class="panel2-head"><h2 class="panel2-title">Tóm tắt đơn hàng</h2></div>
+                <div class="panel2-body stack-4">
+                    <div class="voucher-field">
+                        @if (code is not null)
+                        {
+                            <div class="vf-applied @(p.CodeError is null ? "ok" : "bad")">
+                                @ShopIcons.Svg("ticket-percent", 20)
+                                <div class="min-w-0 flex-1">
+                                    <p class="vf-code">Voucher @code</p>
+                                    <p class="xs">@(p.CodeError is string ce ? $"Chưa áp dụng được: {ce}" : $"Đã giảm {Fmt.Vnd(codeDiscount?.Amount ?? 0)}")</p>
+                                </div>
+                                <a class="btn btn-ghost btn-sm text-brand" href="@(ShopUrls.Cart + "?voucher=1")" data-dialog-open="voucher-picker" aria-label="Đổi voucher">Đổi</a>
+                                <form method="post" asp-controller="Cart" asp-action="Code" data-keep-scroll>
+                                    <input type="hidden" name="code" value="" />
+                                    <button type="submit" class="btn btn-ghost btn-sm" aria-label="Gỡ voucher">Gỡ</button>
+                                </form>
+                            </div>
+                        }
+                        else
+                        {
+                            <a class="vf-add" href="@(ShopUrls.Cart + "?voucher=1")" data-dialog-open="voucher-picker">
+                                <span class="vf-add-ic">@ShopIcons.Svg("ticket-percent", 20)</span>
+                                <span class="min-w-0 flex-1">
+                                    <span class="vf-add-title">Thêm voucher giảm giá</span>
+                                    <span class="xs muted block">
+                                        @(usable.Count > 0 ? $"{usable.Count} voucher dùng được cho đơn này" : Model.Vouchers.Count > 0 ? $"{Model.Vouchers.Count} voucher · xem điều kiện áp dụng" : "Hiện chưa có voucher")
+                                    </span>
+                                </span>
+                                @ShopIcons.Svg("chevron-right", 16, "muted")
+                            </a>
+                        }
+
+                        @if (memberDiscount is not null)
+                        {
+                            <p class="member-hint">@ShopIcons.Svg("badge-percent", 16, "text-brand") Đã tự động áp dụng @Fmt.LowerFirst(memberDiscount.Label).</p>
+                        }
+                        else if (customer is not null && Model.MemberVoucherLive)
+                        {
+                            var t = MembershipService.Info(customer.Tier);
+                            <p class="member-hint muted">@ShopIcons.Svg("badge-percent", 16, "text-brand") Hạng @t.Label: giảm @Fmt.Vnd(t.DrinkVoucher) mỗi ly trà sữa, trà trái cây, cà phê (tối đa @MembershipService.MaxDrinkVouchersPerOrder ly/đơn), tự áp dụng khi có trong giỏ.</p>
+                        }
+                        else if (customer is null)
+                        {
+                            <p class="member-hint muted">@ShopIcons.Svg("badge-percent", 16, "text-brand") <span><a class="link" href="@signIn">Đăng nhập</a> để dùng voucher thành viên, giảm đến @Fmt.Vnd(diamond.DrinkVoucher) mỗi ly đồ uống.</span></p>
+                        }
+                    </div>
+
+                    <hr class="sep" />
+
+                    <dl class="sum-rows">
+                        <div><dt>Tạm tính (@p.ItemCount sản phẩm)</dt><dd>@Fmt.Vnd(p.Subtotal)</dd></div>
+                        @foreach (var d in p.Discounts)
+                        {
+                            <div><dt>@DiscountLabel(d)</dt><dd class="sale-text">-@Fmt.Vnd(d.Amount)</dd></div>
+                        }
+                        <div>
+                            <dt>Phí giao hàng</dt>
+                            <dd>
+                                @if (p.ShippingFee > 0)
+                                {
+                                    @Fmt.Vnd(p.ShippingFee)
+                                }
+                                else
+                                {
+                                    <s class="xs muted fw-normal">@Fmt.Vnd(DeliveryService.ShippingFee)</s> <span class="fresh-text">Miễn phí</span>
+                                }
+                            </dd>
+                        </div>
+                    </dl>
+
+                    @if (p.FreeShipping)
+                    {
+                        <p class="ship-ok">@ShopIcons.Svg("badge-check", 16) Đơn hàng được miễn phí giao hàng</p>
+                    }
+                    else
+                    {
+                        <div class="ship-bar">
+                            <p>@ShopIcons.Svg("truck", 16) <span>Mua thêm <b>@Fmt.Vnd(shipMissing)</b> để được miễn phí giao hàng</span></p>
+                            <div class="bar bar-fresh"><span style="width:@Fmt.Css(Math.Min(100, payable * 100.0 / DeliveryService.FreeShippingFrom))%"></span></div>
+                        </div>
+                    }
+
+                    <hr class="sep" />
+
+                    <div>
+                        <div class="sum-total"><span>Tổng cộng</span><b class="tabular">@Fmt.Vnd(p.Total)</b></div>
+                        @if (p.DiscountTotal > 0)
+                        {
+                            <p class="saved">Bạn tiết kiệm @Fmt.Vnd(p.DiscountTotal)</p>
+                        }
+                        @if (customer is not null)
+                        {
+                            var (stars, _) = StarService.Earn(customer.StarCarry, p.EligibleSpend);
+                            <p class="stars-preview">
+                                @if (stars > 0)
+                                {
+                                    <text>Đơn này tích thêm <span class="stars">@ShopIcons.Svg("star", 12) @stars</span> sao vàng</text>
+                                }
+                                else
+                                {
+                                    <text>Chi tiêu thêm @Fmt.Vnd(StarService.SpendToNextStar(customer.StarCarry) - p.EligibleSpend) để nhận thêm 1 sao vàng</text>
+                                }
+                            </p>
+                        }
+                    </div>
+
+                    <div class="place-desktop">
+                        @if (customer is null)
+                        {
+                            <a class="btn btn-lg btn-block" href="@signIn">Đăng nhập để đặt hàng</a>
+                        }
+                        else
+                        {
+                            <button type="submit" form="checkout" class="btn btn-lg btn-block">Đặt hàng</button>
+                        }
+                    </div>
+                    <p class="footnote">Giá đã gồm VAT. Hạng thành viên tính trên giá trị đơn sau giảm giá, không gồm đồ uống có cồn.</p>
+                </div>
+            </section>
+        </aside>
+    </div>
+
+    <div class="checkout-bar">
+        <div class="min-w-0 flex-1">
+            <p class="xs muted">Tổng cộng · @p.ItemCount sản phẩm</p>
+            <p class="checkout-bar-total tabular">@Fmt.Vnd(p.Total)</p>
+        </div>
+        @if (customer is null)
+        {
+            <a class="btn btn-lg" href="@signIn">Đăng nhập để đặt hàng</a>
+        }
+        else
+        {
+            <button type="submit" form="checkout" class="btn btn-lg">Đặt hàng</button>
+        }
+    </div>
+</div>
+
+<dialog class="modal modal-lg vp @(Model.OpenPicker ? "static-open" : null)" id="voucher-picker" aria-labelledby="vp-title" open="@Model.OpenPicker" data-open-on-load="@(Model.OpenPicker ? "true" : "false")">
+    <div class="vp-head">
+        <div class="vp-title-row">
+            <h2 class="modal-title" id="vp-title">Chọn voucher giảm giá</h2>
+            <a class="btn-close" href="@ShopUrls.Cart" data-close aria-label="Đóng">@ShopIcons.Svg("x", 18)</a>
+        </div>
+        <p class="modal-desc">Mỗi đơn dùng 1 voucher. Flash sale và ưu đãi thành viên được áp dụng tự động, không cần chọn.</p>
+        <form method="post" asp-controller="Cart" asp-action="ApplyVoucher" class="vp-code" novalidate data-keep-scroll>
+            <input name="code" value="@Model.PickerDraft" placeholder="Nhập mã voucher" aria-label="Mã voucher" autocapitalize="characters" autocomplete="off" data-upper
+                   aria-invalid="@(Model.PickerError is null ? "false" : "true")" />
+            <button type="submit" class="btn btn-outline">Áp dụng</button>
+        </form>
+        @if (Model.PickerError is string pickerError)
+        {
+            <p role="alert" class="vp-error">@pickerError</p>
+        }
+    </div>
+    <form method="post" asp-controller="Cart" asp-action="ApplyVoucher" class="vp-form" data-voucher-form data-keep-scroll>
+        <div class="vp-list">
+            @if (Model.Vouchers.Count == 0)
+            {
+                <div class="vp-none">@ShopIcons.Svg("ticket-percent", 32) Hiện chưa có voucher cho đơn online.</div>
+            }
+            else
+            {
+                @if (usable.Count > 0)
+                {
+                    <section>
+                        <h3 class="vp-sec">Dùng được cho đơn này (@usable.Count)</h3>
+                        @foreach (var o in usable)
+                        {
+                            <partial name="_VoucherCard" model="@(new VoucherCardModel(o, o.Promo.Id == bestId, o.Promo.Code == code, Model.Now))" />
+                        }
+                    </section>
+                }
+                @if (unusable.Count > 0)
+                {
+                    <section>
+                        <h3 class="vp-sec">Chưa dùng được (@unusable.Count)</h3>
+                        @foreach (var o in unusable)
+                        {
+                            <partial name="_VoucherCard" model="@(new VoucherCardModel(o, false, false, Model.Now))" />
+                        }
+                    </section>
+                }
+            }
+        </div>
+        <div class="vp-foot">
+            <div class="vp-chosen" data-voucher-chosen>
+                @if (chosen is not null)
+                {
+                    <p class="trunc">Đã chọn <b>@chosen.Promo.Code</b></p>
+                    <p class="vp-save">Giảm @Fmt.Vnd(chosen.Saving)</p>
+                }
+                else
+                {
+                    <p class="muted">Chưa chọn voucher</p>
+                }
+            </div>
+            @if (code is not null)
+            {
+                <button type="submit" form="vp-remove" class="btn btn-ghost">Bỏ voucher</button>
+            }
+            <button type="submit" class="btn" data-voucher-use disabled="@(chosen is null)">Dùng voucher</button>
+        </div>
+    </form>
+    <form method="post" asp-controller="Cart" asp-action="RemoveVoucher" id="vp-remove" data-keep-scroll></form>
+</dialog>

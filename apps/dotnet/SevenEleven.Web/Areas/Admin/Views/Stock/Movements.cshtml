@@ -1,0 +1,57 @@
+@using SevenEleven.Web.Areas.Admin.Controllers
+@model MovementsModel
+@{
+    string Link(int page) => "/Admin/Stock/Movements?" + string.Join("&", new Dictionary<string, string?> { ["kind"] = Model.Kind?.ToString(), ["q"] = Model.Query, ["days"] = Model.Days.ToString(), ["page"] = page.ToString() }
+        .Where(kv => !string.IsNullOrEmpty(kv.Value)).Select(kv => $"{kv.Key}={Uri.EscapeDataString(kv.Value!)}"));
+    var pager = (Model.Page, Model.Pages, (Func<int, string>)Link);
+}
+<div class="page-head">
+    <div>
+        <h1>Nhật ký kho</h1>
+        <p>Mọi lần tồn kho thay đổi: bán hàng, huỷ đơn, nhập hàng, điều chỉnh, kiểm kê, xuất huỷ — ai làm, lúc nào, vì sao.</p>
+    </div>
+    <partial name="_Tabs" model="@("movements")" />
+</div>
+<div class="panel flush">
+    <form method="get" class="toolbar" style="padding:16px">
+        <label class="search-box">@Icons.Svg("search", 16)<input class="input" name="q" value="@Model.Query" placeholder="Tên, SKU, mã đơn hoặc mã phiếu" aria-label="Tìm" /></label>
+        <select class="input" name="kind" aria-label="Loại biến động" onchange="this.form.submit()">
+            <option value="">Mọi loại</option>
+            @foreach (var k in Enum.GetValues<StockMovementKind>()) { <option value="@k" selected="@(k == Model.Kind)">@InventoryService.KindLabel(k)</option> }
+        </select>
+        <select class="input" name="days" aria-label="Khoảng thời gian" onchange="this.form.submit()">
+            @foreach (var d in new[] { 1, 7, 30, 90 }) { <option value="@d" selected="@(d == Model.Days)">@(d == 1 ? "Hôm nay" : $"{d} ngày qua")</option> }
+        </select>
+        <button class="btn" type="submit">Lọc</button>
+        <span class="grow"></span>
+        <span class="result-count">@Money.FormatNumber(Model.Total) dòng</span>
+    </form>
+    @if (Model.Movements.Count == 0)
+    {
+        <p class="empty"><b>Chưa có biến động nào trong khoảng này</b><br />Bán hàng, nhập hàng, điều chỉnh và kiểm kê đều được ghi lại ở đây.</p>
+    }
+    else
+    {
+        <div class="table-wrap">
+            <table class="table">
+                <thead><tr><th>Thời gian</th>@if (Model.IsChain) { <th>Cửa hàng</th> }<th>Mặt hàng</th><th>Loại</th><th class="num">Thay đổi</th><th class="num">Còn lại</th><th>Lý do / chứng từ</th><th>Người làm</th></tr></thead>
+                <tbody>
+                    @foreach (var m in Model.Movements)
+                    {
+                        <tr>
+                            <td>@m.At.ToString("HH:mm dd/MM")</td>
+                            @if (Model.IsChain) { <td>@m.Store?.Code</td> }
+                            <td>@m.Product?.Name<span class="cell-sub">@m.Product?.Sku</span></td>
+                            <td><span class="badge @(m.Delta >= 0 ? "fresh" : "neutral")">@InventoryService.KindLabel(m.Kind)</span></td>
+                            <td class="num @(m.Delta < 0 ? "neg" : null)"><b>@(m.Delta > 0 ? "+" : "")@m.Delta</b></td>
+                            <td class="num">@m.QuantityAfter</td>
+                            <td class="wrap">@m.Reason@(m.Note is null ? "" : $" · {m.Note}")@if (m.Ref is string r) { <span class="cell-sub">@r</span> }</td>
+                            <td>@(m.By ?? "—")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        <partial name="_Pager" model="pager" />
+    }
+</div>

@@ -1,0 +1,72 @@
+@using SevenEleven.Web.Infrastructure
+@model SevenEleven.Web.Controllers.StatusPageModel
+@{
+    Layout = null;
+    var title = Model.NotFound ? "Không tìm thấy trang bạn cần" : Model.Code >= 500 ? "Hệ thống đang bận, bạn thử lại sau ít phút" : "Yêu cầu chưa thực hiện được";
+    var digits = Model.Code.ToString();
+    (string Href, string Label)[] popular =
+    [
+        (ShopUrls.Category("tra-sua"), "Trà sữa & Trà trái cây"),
+        (ShopUrls.Category("mon-ngon"), "Món ngon nhà Bảy"),
+        (ShopUrls.Category("cac-loai-banh"), "Các loại bánh"),
+        (ShopUrls.Category("do-uong-dong-chai"), "Đồ uống đóng chai"),
+        (ShopUrls.Stores, "Danh sách cửa hàng"),
+    ];
+}
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex" />
+    <title>@ViewData["Title"] · 7-Eleven</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:ital,wdth,wght@0,75..100,400..900;1,75..100,400..900&display=swap" />
+    <link rel="stylesheet" href="~/css/shop.css" asp-append-version="true" />
+    <link rel="icon" href="~/img/logo-mark.png" />
+</head>
+<body class="shop nf-page">
+    <header class="nf-head">
+        <div class="nf-head-in">
+            <a href="/" aria-label="Trang chủ" class="nf-brand">
+                <img src="~/img/logo-mark.png" alt="7-Eleven" width="36" height="36" />
+                <img src="~/img/logo-wordmark.png" alt="" class="nf-word" />
+            </a>
+        </div>
+    </header>
+    <main class="nf-main">
+        <div class="nf-box">
+            <p class="nf-code headline" aria-hidden="true">
+                <span class="c1">@digits[0]</span><span class="c2">@digits[1]</span><span class="c3">@digits[2]</span>
+            </p>
+            <h1>@title</h1>
+            <p class="nf-lead">
+                @if (Model.NotFound)
+                {
+                    <text>Đường dẫn có thể đã thay đổi hoặc không còn tồn tại. Cửa hàng vẫn mở cửa 24 giờ, mời bạn quay lại trang chủ để tiếp tục mua sắm.</text>
+                }
+                else
+                {
+                    <text>Bạn tải lại trang hoặc quay về trang chủ để tiếp tục mua sắm. Nếu vừa gửi biểu mẫu, hãy mở lại trang đó và gửi lại.</text>
+                }
+            </p>
+            <div class="nf-buttons">
+                <a class="btn btn-lg" href="/">Về trang chủ</a>
+                <a class="btn btn-lg btn-outline" href="@ShopUrls.Promotions">Xem flash sale hôm nay</a>
+            </div>
+            <div class="nf-suggest">
+                <p>@ShopIcons.Svg("search", 16, "text-brand") Có thể bạn đang tìm</p>
+                <ul>
+                    @foreach (var (href, label) in popular)
+                    {
+                        <li><a class="nf-link" href="@href">@label</a></li>
+                    }
+                </ul>
+            </div>
+            <a class="nf-staff" href="@(Model.Staff ? "/Admin" : ShopUrls.Staff)">Nhân viên cửa hàng? Vào trang quản lý @ShopIcons.Svg("arrow-right", 16)</a>
+        </div>
+    </main>
+    <footer class="nf-foot">Đồ án môn học lấy cảm hứng từ 7-Eleven Việt Nam, không phải website chính thức của 7-Eleven.</footer>
+</body>
+</html>

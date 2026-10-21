@@ -1,0 +1,41 @@
+@using SevenEleven.Core.Models
+@using SevenEleven.Core.Services
+@using SevenEleven.Web.Infrastructure
+@model IEnumerable<Order>
+@* Dòng đơn hàng dẫn tới /don-hang/{mã}: ảnh món đầu, mã, ngày, số món, kênh, cửa hàng, trạng thái, tổng tiền. *@
+<ul class="order-list">
+    @foreach (var o in Model)
+    {
+        var first = o.Items.FirstOrDefault();
+        var units = o.Items.Sum(i => i.Quantity);
+        <li>
+            <a href="@ShopUrls.Order(o.Code)" class="order-row">
+                <span class="order-thumb">
+                    <span class="order-thumb-img">
+                        @if (first?.Product?.Image is string img)
+                        {
+                            <img src="@ShopImages.Url(img, 48)" alt="@first.Name" width="48" height="48" loading="lazy" />
+                        }
+                        else
+                        {
+                            @ShopIcons.Svg("package", 20)
+                        }
+                    </span>
+                    @if (o.Items.Count > 1)
+                    {
+                        <span class="order-more">+@(o.Items.Count - 1)</span>
+                    }
+                </span>
+                <span class="order-main">
+                    <span class="order-code">@o.Code</span>
+                    <span class="order-meta">@Fmt.DateTime(o.CreatedAt) · @units sản phẩm · @Labels.Channel(o.Channel)@(o.Store is null ? "" : $" · CH {o.Store.Code}")</span>
+                </span>
+                <span class="order-side">
+                    @Tones.Badge(Tones.Order(o.Status), Labels.Status(o.Status))
+                    <span class="tabular strong small">@Fmt.Vnd(o.Total)</span>
+                </span>
+                @ShopIcons.Svg("chevron-right", 16, "muted")
+            </a>
+        </li>
+    }
+</ul>

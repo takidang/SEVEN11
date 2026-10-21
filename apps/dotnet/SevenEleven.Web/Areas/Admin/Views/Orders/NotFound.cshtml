@@ -1,0 +1,7 @@
+@model string
+<div class="panel not-found">
+    @Icons.Svg("search", 28)
+    <h1>Không tìm thấy đơn hàng @Model</h1>
+    <p>Mã đơn không đúng, hoặc đơn thuộc cửa hàng khác phạm vi bạn đang xem.</p>
+    <a class="btn" asp-action="Index" asp-route-view="list">Về danh sách đơn</a>
+</div>

@@ -1,0 +1,15 @@
+@model (int Page, int Pages, Func<int, string> Url)
+@if (Model.Pages > 1)
+{
+    <nav class="pager" aria-label="Phân trang">
+        @if (Model.Page > 1)
+        {
+            <a href="@Model.Url(Model.Page - 1)">← Trước</a>
+        }
+        <span>Trang @Model.Page / @Model.Pages</span>
+        @if (Model.Page < Model.Pages)
+        {
+            <a href="@Model.Url(Model.Page + 1)">Sau →</a>
+        }
+    </nav>
+}

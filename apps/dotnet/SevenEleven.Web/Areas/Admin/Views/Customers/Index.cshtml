@@ -1,0 +1,131 @@
+@using SevenEleven.Web.Areas.Admin.Controllers
+@model CustomerListModel
+@{
+    var scopeStore = ViewBag.ScopeStore as Store;
+    string? missing = ViewBag.MissingPhone;
+    string Link(int? page = null, bool? risk = null, string? scope = null, bool keepScope = true) =>
+        "/Admin/Customers?" + string.Join("&", new Dictionary<string, string?>
+        {
+            ["q"] = Model.Query, ["tier"] = Model.Tier?.ToString(), ["risk"] = (risk ?? Model.Risk) ? "true" : null,
+            ["sort"] = Model.Sort == CustomerSort.TierSpend ? null : Model.Sort.ToString(),
+            ["scope"] = keepScope ? (Model.StoreOnly ? null : "chuoi") : scope, ["page"] = page?.ToString(),
+        }.Where(kv => !string.IsNullOrEmpty(kv.Value)).Select(kv => $"{kv.Key}={Uri.EscapeDataString(kv.Value!)}"));
+    var pager = (Model.Page, Model.Pages, (Func<int, string>)(p => Link(p)));
+    var filtering = !string.IsNullOrWhiteSpace(Model.Query) || Model.Tier is not null || Model.Risk;
+    var month = MembershipService.MonthKey(Model.Now);
+    string Initials(string name) { var parts = name.Split(' ', StringSplitOptions.RemoveEmptyEntries); return parts.Length >= 2 ? $"{parts[^2][0]}{parts[^1][0]}" : name[..1]; }
+}
+<div class="page-head">
+    <div>
+        <h1>Khách hàng</h1>
+        <p>@(Model.StoreOnly && scopeStore is not null
+            ? $"Thành viên đã mua tại cửa hàng {scopeStore.Code} – {scopeStore.Name}. Hạng thành viên dùng chung toàn chuỗi."
+            : "Thành viên lên hạng ngay khi chi tiêu tích luỹ đạt mốc, và giữ hạng bằng mức chi tối thiểu mỗi tháng.")</p>
+    </div>
+</div>
+
+@if (missing is not null)
+{
+    <div class="flash flash-warn">Không có thành viên nào dùng số điện thoại @missing. <a class="btn btn-sm" asp-action="Index">Bỏ qua</a></div>
+}
+
+<div class="kpis">
+    <div class="kpi"><span class="kpi-label">@(Model.StoreOnly && scopeStore is not null ? $"Khách của cửa hàng {scopeStore.Code}" : "Tổng thành viên")</span><b class="kpi-value">@Money.FormatNumber(Model.Stats.Total)</b><span class="kpi-sub">@Model.Stats.JoinedLast30Days thành viên mới trong 30 ngày</span></div>
+    <div class="kpi"><span class="kpi-label">Theo hạng thành viên</span>
+        <ul class="budget" style="margin:4px 0 0">
+            @foreach (var t in MembershipService.Order)
+            {
+                var count = Model.Stats.ByTier[t];
+                var share = Model.Stats.Total > 0 ? count / (double)Model.Stats.Total : 0;
+                <li style="display:grid;grid-template-columns:70px minmax(0,1fr) auto;gap:8px;align-items:center;font-size:12px">
+                    <span class="muted">@MembershipService.Info(t).Label</span>
+                    <span class="meter" style="margin:0"><span style="display:block;height:100%;background:var(--brand);width:@((share * 100).ToString("0.#", System.Globalization.CultureInfo.InvariantCulture))%"></span></span>
+                    <span><b>@count</b> <span class="muted">· @Money.Percent(share)</span></span>
+                </li>
+            }
+        </ul>
+    </div>
+    <a class="kpi @(Model.Stats.AtRisk > 0 ? "kpi-warn" : null)" href="@Link(risk: true)"><span class="kpi-label">Nguy cơ xuống hạng</span><b class="kpi-value">@Model.Stats.AtRisk</b><span class="kpi-sub">Chưa đủ mức giữ hạng tháng @MembershipService.MonthLabel(month), xét ngày @MembershipService.ReviewDay(month).ToString("dd/MM/yyyy")</span></a>
+    <div class="kpi"><span class="kpi-label">Sao vàng chưa dùng</span><b class="kpi-value">★ @Money.FormatNumber(Model.Stats.Stars)</b><span class="kpi-sub">@Model.Stats.CanRedeem thành viên đủ 10 sao để đổi voucher</span></div>
+</div>
+
+<div class="panel flush">
+    <form method="get" class="toolbar" style="padding:16px">
+        @if (!Model.StoreOnly && scopeStore is not null) { <input type="hidden" name="scope" value="chuoi" /> }
+        <label class="search-box">
+            @Icons.Svg("search", 16)
+            <input class="input" name="q" value="@Model.Query" placeholder="Tìm tên hoặc số điện thoại" aria-label="Tìm khách hàng" />
+        </label>
+        <select class="input" name="tier" aria-label="Lọc theo hạng" onchange="this.form.submit()">
+            <option value="">Tất cả hạng</option>
+            @foreach (var t in MembershipService.Order)
+            {
+                <option value="@t" selected="@(t == Model.Tier)">Hạng @MembershipService.Info(t).Label</option>
+            }
+        </select>
+        <label class="check" style="font-size:13px"><input type="checkbox" name="risk" value="true" checked="@Model.Risk" onchange="this.form.submit()" /> Nguy cơ xuống hạng <span class="chip-soft">@Model.Stats.AtRisk</span></label>
+        <select class="input" name="sort" aria-label="Sắp xếp" onchange="this.form.submit()">
+            @foreach (var (sort, label) in CustomerAdminService.Sorts)
+            {
+                <option value="@sort" selected="@(sort == Model.Sort)">Xếp theo: @label</option>
+            }
+        </select>
+        <button class="btn" type="submit">Lọc</button>
+        @if (scopeStore is not null)
+        {
+            <nav class="seg" aria-label="Phạm vi khách hàng">
+                <a href="@Link(scope: null, keepScope: false)" class="@(Model.StoreOnly ? "active" : null)">Khách của CH @scopeStore.Code</a>
+                <a href="@Link(scope: "chuoi", keepScope: false)" class="@(Model.StoreOnly ? null : "active")">Toàn chuỗi</a>
+            </nav>
+        }
+        <span class="grow"></span>
+        <span class="result-count">@(filtering ? $"{Model.Filtered} / {Model.Scoped} khách hàng" : $"{Model.Scoped} khách hàng")</span>
+    </form>
+    @if (Model.Rows.Count == 0)
+    {
+        <p class="empty">
+            @if (filtering && Model.Risk && string.IsNullOrWhiteSpace(Model.Query) && Model.Tier is null)
+            {
+                <b>Không có thành viên nào có nguy cơ xuống hạng</b><br /><text>Mọi thành viên cần giữ hạng tháng này đều đã chi đủ mức tối thiểu.</text>
+            }
+            else if (filtering)
+            {
+                <b>Không tìm thấy khách hàng</b><br />@(Model.StoreOnly ? "Thử từ khoá khác, hoặc chuyển sang “Toàn chuỗi” để tìm cả khách chưa mua tại cửa hàng này." : "Thử từ khoá, hạng khác hoặc bỏ lọc nguy cơ xuống hạng.")
+            }
+            else
+            {
+                <b>Chưa có thành viên</b><br /><text>Khách đăng ký bằng số điện thoại trên web hoặc tại quầy sẽ xuất hiện ở đây.</text>
+            }
+        </p>
+    }
+    else
+    {
+        <div class="table-wrap">
+            <table class="table">
+                <thead><tr><th>Khách hàng</th><th>Hạng</th><th class="num">Chi tiêu tích luỹ</th><th class="num">Giữ hạng tháng này</th><th class="num">Sao vàng</th><th class="num">Tổng chi tiêu</th><th class="num">Số đơn</th><th class="num">Ngày tham gia</th></tr></thead>
+                <tbody>
+                    @foreach (var r in Model.Rows)
+                    {
+                        var c = r.Customer;
+                        var progress = MembershipService.Progress(c);
+                        var k = r.Keep;
+                        <tr>
+                            <td><a class="person" asp-action="Detail" asp-route-id="@c.Id"><span class="avatar-sm">@Initials(c.FullName)</span><span><b style="font-weight:500">@c.FullName</b><span class="cell-sub">@Phone.Format(c.Phone)</span></span></a></td>
+                            <td><span class="tier-chip @c.Tier">@MembershipService.Info(c.Tier).Label</span></td>
+                            <td class="num">@Money.Format(c.TierSpend)<span class="cell-sub">@(progress.Next is null ? "Hạng cao nhất" : $"{progress.Percent}% tới {progress.Next.Label}") <span class="bar-mini"><span style="width:@progress.Percent%"></span></span></span></td>
+                            <td class="num">
+                                @(k.Exempt is not null ? Money.Format(k.Spent) : $"{Money.FormatNumber(k.Spent)} / {Money.Format(k.Required)}")
+                                <span class="cell-sub">@if (k.Exempt is not null) { <span class="badge neutral">Miễn xét</span> } else if (k.Missing > 0) { <span class="badge orange">Thiếu @Money.Format(k.Missing)</span> } else { <span class="badge fresh">Đủ điều kiện</span> }</span>
+                            </td>
+                            <td class="num">★ @c.Stars</td>
+                            <td class="num">@Money.Format(c.TotalSpent)</td>
+                            <td class="num">@c.OrderCount</td>
+                            <td class="num">@c.JoinedAt.ToString("dd/MM/yyyy")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        <partial name="_Pager" model="pager" />
+    }
+</div>

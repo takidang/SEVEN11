@@ -1,0 +1,126 @@
+@using SevenEleven.Web.Areas.Admin.Controllers
+@model ProductListModel
+@{
+    var scopeStore = ViewBag.ScopeStore as Store;
+    bool canManage = ViewBag.CanManage;
+    var here = Context.Request.Path + Context.Request.QueryString;
+    string Link(int? page = null, string? status = null, bool keepStatus = true) =>
+        "/Admin/Products?" + string.Join("&", new Dictionary<string, string?>
+        {
+            ["q"] = Model.Query, ["cat"] = Model.Category, ["status"] = keepStatus ? Model.Status : status,
+            ["sale"] = Model.Sale ? "true" : null, ["sort"] = Model.Sort == "moi" ? null : Model.Sort, ["page"] = page?.ToString(),
+        }.Where(kv => !string.IsNullOrEmpty(kv.Value)).Select(kv => $"{kv.Key}={Uri.EscapeDataString(kv.Value!)}"));
+    var pager = (Model.Page, Model.Pages, (Func<int, string>)(p => Link(p)));
+    var filtering = !string.IsNullOrWhiteSpace(Model.Query) || Model.Category is not null || Model.Status is not null || Model.Sale;
+    var s = Model.Stats;
+}
+<div class="page-head">
+    <div>
+        <h1>Sản phẩm</h1>
+        <p>Danh mục dùng chung toàn chuỗi · @(scopeStore is null ? $"tồn kho cộng dồn {Model.StoreCount} cửa hàng" : $"tồn kho tại cửa hàng {scopeStore.Code} – {scopeStore.Name}")</p>
+    </div>
+    @if (canManage)
+    {
+        <a class="btn btn-primary" asp-action="Edit">@Icons.Svg("plus", 16) Thêm sản phẩm</a>
+    }
+</div>
+
+<div class="kpis">
+    <div class="kpi"><span class="kpi-label">Tổng sản phẩm</span><b class="kpi-value">@Money.FormatNumber(s.Total)</b><span class="kpi-sub">@s.Categories danh mục</span></div>
+    <div class="kpi"><span class="kpi-label">Đang bán</span><b class="kpi-value">@Money.FormatNumber(s.Active)</b><span class="kpi-sub">@(s.Inactive > 0 ? $"{s.Inactive} sản phẩm ngừng bán" : "Tất cả đang mở bán")</span></div>
+    <a class="kpi" href="/Admin/Stock?state=low"><span class="kpi-label">Sắp hết hàng</span><b class="kpi-value">@s.Low</b><span class="kpi-sub">@(scopeStore is null ? "Chạm định mức ở ít nhất 1 cửa hàng" : $"Tại cửa hàng {scopeStore.Code}, chạm định mức")</span></a>
+    <a class="kpi @(s.Out > 0 ? "kpi-warn" : null)" href="/Admin/Stock?state=out"><span class="kpi-label">Hết hàng</span><b class="kpi-value">@s.Out</b><span class="kpi-sub">@(scopeStore is null ? "Hết ở ít nhất 1 cửa hàng" : $"Tại cửa hàng {scopeStore.Code}")</span></a>
+</div>
+
+<div class="panel flush">
+    <form method="get" class="toolbar" style="padding:16px">
+        <label class="search-box">
+            @Icons.Svg("search", 16)
+            <input class="input" name="q" value="@Model.Query" placeholder="Tìm tên, SKU hoặc mã vạch" aria-label="Tìm sản phẩm" />
+        </label>
+        <select class="input" name="cat" aria-label="Danh mục" onchange="this.form.submit()">
+            <option value="">Tất cả danh mục</option>
+            @foreach (var c in Model.Categories)
+            {
+                <option value="@c.Id" selected="@(c.Id == Model.Category)">@c.Name</option>
+            }
+        </select>
+        <select class="input" name="status" aria-label="Trạng thái" onchange="this.form.submit()">
+            <option value="">Tất cả trạng thái</option>
+            <option value="dang-ban" selected="@(Model.Status == "dang-ban")">Đang bán</option>
+            <option value="ngung-ban" selected="@(Model.Status == "ngung-ban")">Ngừng bán</option>
+        </select>
+        <label class="check" style="font-size:13px"><input type="checkbox" name="sale" value="true" checked="@Model.Sale" onchange="this.form.submit()" /> Đang giảm giá</label>
+        <select class="input" name="sort" aria-label="Sắp xếp" onchange="this.form.submit()">
+            @foreach (var (key, label) in ProductsController.Sorts)
+            {
+                <option value="@key" selected="@(key == Model.Sort)">Xếp: @label</option>
+            }
+        </select>
+        <button class="btn" type="submit">Lọc</button>
+        <span class="grow"></span>
+        <span class="result-count">@(filtering ? $"{Model.Filtered} / {Model.Total} sản phẩm" : $"{Model.Total} sản phẩm")</span>
+    </form>
+    @if (Model.Rows.Count == 0)
+    {
+        <p class="empty"><b>Không tìm thấy sản phẩm</b><br />Thử từ khoá khác hoặc bỏ bớt bộ lọc danh mục, trạng thái.</p>
+    }
+    else
+    {
+        <div class="table-wrap">
+            <table class="table">
+                <thead><tr><th>Sản phẩm</th><th>Danh mục</th><th class="num">Giá bán</th><th class="num">Giá vốn</th><th class="num">Biên lợi nhuận</th><th class="num">Tồn</th><th>Trạng thái</th></tr></thead>
+                <tbody>
+                    @foreach (var r in Model.Rows)
+                    {
+                        var p = r.Product;
+                        <tr class="@(p.IsActive ? null : "muted-row")">
+                            <td>
+                                <a class="product-cell" asp-action="Edit" asp-route-id="@p.Id">
+                                    <img class="thumb" src="@p.Image" alt="" loading="lazy" />
+                                    <span><b style="font-weight:500">@p.Name</b><span class="cell-sub">@p.Sku · @p.Barcode</span></span>
+                                </a>
+                            </td>
+                            <td>@p.Category?.Name<span class="cell-sub">› @(p.Subcategory?.Name ?? "—")</span></td>
+                            <td class="num">@Money.Format(p.Price)@if (p.CompareAtPrice > p.Price) { <span class="cell-sub"><s>@Money.Format(p.CompareAtPrice.Value)</s></span> }</td>
+                            <td class="num">@Money.Format(p.CostPrice)</td>
+                            <td class="num @(r.Margin < 0.2 ? "state-low" : null)" title="@(r.Margin < 0.2 ? "Biên lợi nhuận dưới 20%" : null)">@(r.Margin < 0.2 ? "⚠ " : "")@Money.Percent(r.Margin)</td>
+                            <td class="num">
+                                @if (scopeStore is null)
+                                {
+                                    @Money.FormatNumber(r.Stock.Quantity)
+                                    @if (r.Stock.Out > 0) { <span class="cell-sub state-out">Hết ở @r.Stock.Out cửa hàng</span> }
+                                    else if (r.Stock.Low > 0) { <span class="cell-sub state-low">Sắp hết ở @r.Stock.Low cửa hàng</span> }
+                                }
+                                else
+                                {
+                                    var state = r.Stock.Out > 0 ? StockState.Out : r.Stock.Low > 0 ? StockState.Low : StockState.Ok;
+                                    @r.Stock.Quantity
+                                    @if (state != StockState.Ok) { <span class="cell-sub @(state == StockState.Out ? "state-out" : "state-low")">@InventoryService.Label(state)</span> }
+                                }
+                            </td>
+                            <td>
+                                @if (canManage)
+                                {
+                                    <form method="post" asp-action="Toggle" class="inline">
+                                        <input type="hidden" name="id" value="@p.Id" />
+                                        <input type="hidden" name="active" value="@(!p.IsActive)" />
+                                        <input type="hidden" name="returnUrl" value="@here" />
+                                        <button class="toggle-btn" type="submit" aria-label="@(p.IsActive ? "Ngừng bán" : "Mở bán") @p.Name">
+                                            <span class="switch @(p.IsActive ? "on" : null)"></span> <span class="cell-sub" style="display:inline">@(p.IsActive ? "Đang bán" : "Ngừng bán")</span>
+                                        </button>
+                                    </form>
+                                }
+                                else
+                                {
+                                    <span class="badge @(p.IsActive ? "fresh" : "neutral")">@(p.IsActive ? "Đang bán" : "Ngừng bán")</span>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        <partial name="_Pager" model="pager" />
+    }
+</div>

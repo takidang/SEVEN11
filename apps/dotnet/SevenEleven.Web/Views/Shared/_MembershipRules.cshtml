@@ -1,0 +1,19 @@
+@using SevenEleven.Core.Services
+@using SevenEleven.Web.Infrastructure
+@model string
+@{
+    string[] rules =
+    [
+        "Chi tiêu được tính là số tiền thực trả sau mọi giảm giá (mua 1.000.000 ₫ được giảm 500.000 ₫ thì tính 500.000 ₫), không tính đồ uống có cồn. Đơn bị huỷ sẽ bị trừ lại.",
+        "Chi tiêu tích luỹ đạt mốc của hạng nào là lên hạng đó ngay, không phải chờ.",
+        "Ngày 1 hằng tháng, hệ thống xét chi tiêu của tháng trước. Chưa đủ mức giữ hạng thì xuống 1 hạng, và chi tiêu tích luỹ trở về đúng mốc của hạng mới.",
+        "Tháng vừa lên hạng không bị xét giữ hạng. Hạng Đồng không cần duy trì.",
+        $"Cứ {Fmt.Vnd(StarService.StarSpend)} chi tiêu được 1 sao vàng, phần lẻ cộng dồn sang đơn sau. Sao có hạn {StarService.StarValidMonths} tháng kể từ ngày nhận và dùng để đổi voucher.",
+    ];
+}
+<ol class="rules @Model">
+    @for (var i = 0; i < rules.Length; i++)
+    {
+        <li><span class="rule-n">@(i + 1)</span><span>@rules[i]</span></li>
+    }
+</ol>

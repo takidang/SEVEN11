@@ -1,0 +1,320 @@
+@using SevenEleven.Web.Areas.Admin.Controllers
+@model ReportModel
+@{
+    var scopeStore = ViewBag.ScopeStore as Store;
+    var s = Model.Summary;
+    var p = Model.PreviousSummary;
+    var lastDay = Model.Range.To.AddDays(-1);
+    var custom = Model.PeriodKey == "tuy-chon";
+    Dictionary<string, string?> Query(string tab) => new()
+    {
+        ["tab"] = tab, ["period"] = Model.PeriodKey, ["channel"] = Model.Channel?.ToString(),
+        ["from"] = custom ? Model.Range.From.ToString("yyyy-MM-dd") : null, ["to"] = custom ? lastDay.ToString("yyyy-MM-dd") : null,
+    };
+    string Url(string path, string tab) =>
+        path + "?" + string.Join("&", Query(tab).Where(kv => !string.IsNullOrEmpty(kv.Value)).Select(kv => $"{kv.Key}={Uri.EscapeDataString(kv.Value!)}"));
+    var rangeText = Model.Range.From.Date == lastDay.Date ? Model.Range.From.ToString("dd/MM/yyyy") : $"{Model.Range.From:dd/MM} – {lastDay:dd/MM/yyyy}";
+    var prevLast = Model.Previous.To.TimeOfDay == TimeSpan.Zero ? Model.Previous.To.AddDays(-1) : Model.Previous.To.Date;
+    var prevText = Model.Previous.From.Date == prevLast.Date ? Model.Previous.From.ToString("dd/MM/yyyy") : $"{Model.Previous.From:dd/MM} – {prevLast:dd/MM/yyyy}";
+    var caption = p is null ? "Chưa đủ dữ liệu kỳ trước để so sánh"
+        : $"So sánh với {prevText}{(Model.Previous.To.TimeOfDay != TimeSpan.Zero ? $" (đến {Model.Previous.To:HH:mm})" : "")}";
+    if (custom) caption += $" · {Model.Range.Days} ngày";
+    if (Model.FirstOrderAt is DateTime firstAt && firstAt > Model.Range.From) caption += $" · dữ liệu có từ {firstAt:dd/MM/yyyy}";
+}
+@functions {
+    static IHtmlContent Delta(double current, double? previous)
+    {
+        if (previous is not double prev) return new HtmlString("<span class=\"delta\">Chưa đủ dữ liệu kỳ trước để so</span>");
+        var change = Periods.Change(current, prev);
+        if (change is not double c) return new HtmlString("<span class=\"delta\">Kỳ trước không có số</span>");
+        return new HtmlString($"<span class=\"delta {(c >= 0 ? "up" : "down")}\">{(c >= 0 ? "▲" : "▼")} {Money.Change(c)}</span> <span class=\"delta\">so với kỳ trước</span>");
+    }
+}
+
+<div class="page-head">
+    <div>
+        <h1>Báo cáo</h1>
+        <p>@(scopeStore is null ? "Toàn chuỗi" : $"Cửa hàng {scopeStore.Code} – {scopeStore.Name}") · @Model.Range.Label (@rangeText)@(Model.Channel is SalesChannel ch ? $" · {Labels.Channel(ch)}" : "")</p>
+        <p class="muted small">@caption</p>
+    </div>
+    <div class="toolbar">
+        <form method="get" class="toolbar" data-report-filter>
+            <input type="hidden" name="tab" value="@Model.Tab" />
+            <select class="input" name="period" aria-label="Kỳ báo cáo" data-period>
+                @foreach (var (key, label) in ReportsController.Presets)
+                {
+                    <option value="@key" selected="@(key == Model.PeriodKey)">@label</option>
+                }
+            </select>
+            <span class="range-inputs" data-range hidden="@(!custom)">
+                <input class="input" type="date" name="from" aria-label="Từ ngày" value="@Model.Range.From.ToString("yyyy-MM-dd")" max="@Model.Now.ToString("yyyy-MM-dd")" />
+                <span aria-hidden="true">–</span>
+                <input class="input" type="date" name="to" aria-label="Đến ngày" value="@lastDay.ToString("yyyy-MM-dd")" max="@Model.Now.ToString("yyyy-MM-dd")" />
+                <button class="btn" type="submit">Xem</button>
+            </span>
+            <select class="input" name="channel" aria-label="Kênh bán" onchange="this.form.submit()">
+                <option value="">Tất cả kênh</option>
+                <option value="InStore" selected="@(Model.Channel == SalesChannel.InStore)">Tại quầy</option>
+                <option value="Online" selected="@(Model.Channel == SalesChannel.Online)">Online</option>
+            </select>
+            <noscript><button class="btn" type="submit">Xem</button></noscript>
+        </form>
+        <a class="btn" href="@Url("/Admin/Reports/Export", Model.Tab)" download>@Icons.Svg("download", 16) Xuất CSV</a>
+    </div>
+</div>
+
+<div class="kpis">
+    <div class="kpi"><span class="kpi-label">Doanh thu</span><b class="kpi-value">@Money.Format(s.Revenue)</b><span class="kpi-sub">@Delta(s.Revenue, p?.Revenue)</span></div>
+    <div class="kpi"><span class="kpi-label">Số đơn</span><b class="kpi-value">@Money.FormatNumber(s.Orders)</b><span class="kpi-sub">@Delta(s.Orders, p?.Orders)</span></div>
+    <div class="kpi"><span class="kpi-label">Giá trị trung bình / đơn</span><b class="kpi-value">@Money.Format(s.Aov)</b><span class="kpi-sub">@Delta(s.Aov, p?.Aov)</span></div>
+    <div class="kpi"><span class="kpi-label">Lãi gộp</span><b class="kpi-value">@Money.Format(s.GrossProfit)</b><span class="kpi-sub">Biên @Money.Percent(s.Margin) · giảm giá đã trừ @Money.FormatCompact(s.Discount) ₫</span></div>
+</div>
+
+<nav class="seg" aria-label="Loại báo cáo">
+    @foreach (var (key, label, chainOnly) in ReportsController.Tabs.Where(t => !t.ChainOnly || Model.IsChain))
+    {
+        <a href="@Url("/Admin/Reports", key)" class="@(Model.Tab == key ? "active" : null)">@label</a>
+    }
+</nav>
+
+@switch (Model.Tab)
+{
+    case "doanh-thu":
+        var chart = Charts.Columns(
+            "Doanh thu theo ngày",
+            Model.Daily.Select(d => new ChartBar(d.Date.ToString("dd/MM"), d.Revenue,
+                $"{TimeText.WeekdayShort(d.Date)} {d.Date:dd/MM} · {Money.Format(d.Revenue)} · {Money.FormatNumber(d.Orders)} đơn", d.Date == Model.Now.Date)).ToList(),
+            v => Money.FormatCompact((long)v),
+            labelEvery: Model.Daily.Count > 14 ? 5 : 1);
+        <section class="panel">
+            <div class="panel-head"><div><h2>Doanh thu theo ngày</h2><p>Không tính đơn đã huỷ; rê chuột lên cột để xem số</p></div></div>
+            <partial name="_ColumnChart" model="chart" />
+        </section>
+        <section class="panel flush">
+            <div class="panel-head pad"><h2>Chi tiết theo ngày</h2></div>
+            <div class="table-wrap">
+                <table class="table">
+                    <thead><tr><th>Ngày</th><th class="num">Số đơn</th><th class="num">Doanh thu</th><th class="num">Giảm giá</th><th class="num">TB/đơn</th><th class="num">Lãi gộp</th><th class="num">Biên</th></tr></thead>
+                    <tbody>
+                        @foreach (var d in Model.Daily.AsEnumerable().Reverse())
+                        {
+                            <tr>
+                                <td>@TimeText.WeekdayShort(d.Date) @d.Date.ToString("dd/MM/yyyy")</td>
+                                <td class="num">@Money.FormatNumber(d.Orders)</td>
+                                <td class="num">@Money.Format(d.Revenue)</td>
+                                <td class="num">@Money.Format(d.Discount)</td>
+                                <td class="num">@Money.Format(d.Aov)</td>
+                                <td class="num">@Money.Format(d.GrossProfit)</td>
+                                <td class="num">@Money.Percent(d.Margin)</td>
+                            </tr>
+                        }
+                    </tbody>
+                    <tfoot>
+                        <tr><td>Cả kỳ</td><td class="num">@Money.FormatNumber(s.Orders)</td><td class="num">@Money.Format(s.Revenue)</td><td class="num">@Money.Format(s.Discount)</td><td class="num">@Money.Format(s.Aov)</td><td class="num">@Money.Format(s.GrossProfit)</td><td class="num">@Money.Percent(s.Margin)</td></tr>
+                    </tfoot>
+                </table>
+            </div>
+        </section>
+        break;
+
+    case "lai-lo":
+        var pnl = Model.Pnl!;
+        var months = Model.Range.Days / 30.0;
+        <div class="kpis">
+            <div class="kpi"><span class="kpi-label">Biên lãi gộp</span><b class="kpi-value">@Money.Percent(pnl.GrossMargin)</b><span class="kpi-sub">trên doanh thu</span></div>
+            <div class="kpi @(pnl.NetProfit < 0 ? "kpi-warn" : null)"><span class="kpi-label">@(pnl.NetProfit < 0 ? "Lỗ thuần" : "Lãi thuần")</span><b class="kpi-value @(pnl.NetProfit < 0 ? "neg" : null)">@Money.Signed(pnl.NetProfit)</b><span class="kpi-sub">Biên lãi thuần @Money.Percent(pnl.NetMargin)</span></div>
+            <div class="kpi"><span class="kpi-label">Quy ra một tháng</span><b class="kpi-value">@Money.Signed((long)Math.Round(pnl.NetProfit / months))</b><span class="kpi-sub">Doanh thu khoảng @Money.FormatCompact((long)Math.Round(s.Revenue / months)) ₫ / tháng</span></div>
+        </div>
+        <section class="panel flush">
+            <div class="panel-head pad"><div><h2>Kết quả kinh doanh · @Model.Range.Days ngày</h2><p>Doanh thu và giá vốn từ đơn thật; lương, mặt bằng, điện nước, marketing chia theo định mức tháng@(Model.IsChain ? "" : " (gồm phần chia văn phòng và marketing của cửa hàng)")</p></div></div>
+            <table class="statement">
+                <tbody>
+                    @foreach (var line in pnl.Lines)
+                    {
+                        <tr class="@(line.IsTotal ? "total" : null)">
+                            <td>@line.Label@if (line.Note is string note) { <small>@note</small> }</td>
+                            <td class="@(line.Amount < 0 && line.IsTotal ? "neg" : null)">@Money.Signed(line.Amount)</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </section>
+        break;
+
+    case "hang-hoa":
+        <section class="panel flush">
+            <div class="panel-head pad"><div><h2>Theo ngành hàng</h2><p>Tiền hàng sau giảm giá từng dòng, chưa gồm phí giao</p></div></div>
+            <div class="table-wrap">
+                <table class="table">
+                    <thead><tr><th>Ngành hàng</th><th class="num">SL bán</th><th class="num">Doanh thu</th><th class="num">Tỷ trọng</th><th class="num">Lãi gộp</th><th class="num">Biên</th></tr></thead>
+                    <tbody>
+                        @foreach (var c in Model.Categories)
+                        {
+                            <tr>
+                                <td>@c.Category.Name</td>
+                                <td class="num">@Money.FormatNumber(c.Quantity)</td>
+                                <td class="num">@Money.Format(c.Revenue)</td>
+                                <td class="num">@Money.Percent(c.Share)</td>
+                                <td class="num">@Money.Format(c.GrossProfit)</td>
+                                <td class="num">@Money.Percent(c.Margin)</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </section>
+        <section class="panel flush">
+            <div class="panel-head pad"><h2>Top 20 sản phẩm theo doanh thu</h2></div>
+            <div class="table-wrap">
+                <table class="table">
+                    <thead><tr><th>#</th><th>Sản phẩm</th><th class="num">SL bán</th><th class="num">Doanh thu</th><th class="num">Lãi gộp</th><th class="num">Biên</th></tr></thead>
+                    <tbody>
+                        @for (var i = 0; i < Model.Products.Count; i++)
+                        {
+                            var pr = Model.Products[i];
+                            <tr>
+                                <td class="num">@(i + 1)</td>
+                                <td><span class="product-cell"><img class="thumb" src="@pr.Product.Image" alt="" loading="lazy" /><span>@pr.Product.Name<span class="cell-sub">@pr.Product.Sku</span></span></span></td>
+                                <td class="num">@Money.FormatNumber(pr.Quantity)</td>
+                                <td class="num">@Money.Format(pr.Revenue)</td>
+                                <td class="num">@Money.Format(pr.GrossProfit)</td>
+                                <td class="num">@Money.Percent(pr.Margin)</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </section>
+        break;
+
+    case "cua-hang":
+        var losing = Model.Stores.Count(r => r.NetProfit < 0);
+        <section class="panel flush">
+            <div class="panel-head pad">
+                <div>
+                    <h2>Theo cửa hàng · @Model.Range.Days ngày</h2>
+                    <p>Lãi thuần = lãi gộp − chi phí vận hành của riêng cửa hàng (@Money.Format(Model.StoreCosts) trong kỳ: lương, mặt bằng, điện nước, phần chia văn phòng và marketing)</p>
+                </div>
+                <span class="count-pill @(losing > 0 ? "warn" : "ok")">@(losing > 0 ? $"{losing} cửa hàng lỗ" : "Không cửa hàng nào lỗ")</span>
+            </div>
+            <div class="table-wrap">
+                <table class="table">
+                    <thead><tr><th>Cửa hàng</th><th class="num">Số đơn</th><th class="num">Doanh thu</th><th class="num">TB/đơn</th><th class="num">Online</th><th class="num">Lãi gộp</th><th class="num">Lãi thuần</th></tr></thead>
+                    <tbody>
+                        @foreach (var r in Model.Stores)
+                        {
+                            <tr>
+                                <td>
+                                    <b>@r.Sales.Store.Code</b> @r.Sales.Store.Name
+                                    @if (r.Sales.Store.Status != StoreStatus.Active) { <span class="badge warning">@Labels.Store(r.Sales.Store.Status)</span> }
+                                    <span class="cell-sub">@r.Sales.Store.Province</span>
+                                </td>
+                                <td class="num">@Money.FormatNumber(r.Sales.Orders)</td>
+                                <td class="num">@Money.Format(r.Sales.Revenue)</td>
+                                <td class="num">@Money.Format(r.Sales.Aov)</td>
+                                <td class="num">@Money.Percent(r.Sales.OnlineShare)</td>
+                                <td class="num">@Money.Format(r.Sales.GrossProfit)</td>
+                                <td class="num @(r.NetProfit < 0 ? "neg" : null)"><b>@Money.Signed(r.NetProfit)</b></td>
+                            </tr>
+                        }
+                    </tbody>
+                    <tfoot>
+                        <tr>
+                            <td>Toàn chuỗi</td>
+                            <td class="num">@Money.FormatNumber(Model.Stores.Sum(r => r.Sales.Orders))</td>
+                            <td class="num">@Money.Format(Model.Stores.Sum(r => r.Sales.Revenue))</td>
+                            <td class="num"></td><td class="num"></td>
+                            <td class="num">@Money.Format(Model.Stores.Sum(r => r.Sales.GrossProfit))</td>
+                            <td class="num">@Money.Signed(Model.Stores.Sum(r => r.NetProfit))</td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        </section>
+        break;
+
+    case "nhan-vien":
+        <section class="panel flush">
+            <div class="panel-head pad"><div><h2>Theo thu ngân</h2><p>Đơn bán tại quầy và đơn online do người đó xác nhận</p></div></div>
+            <div class="table-wrap">
+                <table class="table">
+                    <thead><tr><th>Nhân viên</th>@if (Model.IsChain) { <th>Cửa hàng</th> }<th class="num">Số đơn</th><th class="num">Doanh thu</th><th class="num">TB/đơn</th><th class="num">Thu tiền mặt</th></tr></thead>
+                    <tbody>
+                        @foreach (var e in Model.Employees)
+                        {
+                            <tr>
+                                <td>@e.Employee.FullName<span class="cell-sub">@e.Employee.Code</span></td>
+                                @if (Model.IsChain) { <td>@e.Employee.Store?.Code</td> }
+                                <td class="num">@Money.FormatNumber(e.Orders)</td>
+                                <td class="num">@Money.Format(e.Revenue)</td>
+                                <td class="num">@Money.Format(e.Aov)</td>
+                                <td class="num">@Money.Format(e.CashRevenue)</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </section>
+        break;
+
+    case "thanh-toan":
+        var cancel = Model.Cancellation!;
+        <div class="kpis">
+            <div class="kpi"><span class="kpi-label">Đơn online đã đặt</span><b class="kpi-value">@Money.FormatNumber(cancel.Placed)</b></div>
+            <div class="kpi"><span class="kpi-label">Đơn bị huỷ</span><b class="kpi-value">@Money.FormatNumber(cancel.Cancelled)</b></div>
+            <div class="kpi"><span class="kpi-label">Tỷ lệ huỷ</span><b class="kpi-value">@Money.Percent(cancel.Rate)</b></div>
+            <div class="kpi"><span class="kpi-label">Giá trị đơn bị huỷ</span><b class="kpi-value">@Money.Format(cancel.CancelledValue)</b></div>
+        </div>
+        <section class="panel flush">
+            <div class="panel-head pad"><h2>Theo phương thức thanh toán</h2></div>
+            <div class="table-wrap">
+                <table class="table">
+                    <thead><tr><th>Phương thức</th><th class="num">Số đơn</th><th class="num">Doanh thu</th><th class="num">Tỷ trọng</th></tr></thead>
+                    <tbody>
+                        @foreach (var r in Model.Payments)
+                        {
+                            <tr><td>@Labels.Payment(r.Method)</td><td class="num">@Money.FormatNumber(r.Orders)</td><td class="num">@Money.Format(r.Revenue)</td><td class="num">@Money.Percent(r.Share)</td></tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </section>
+        break;
+
+    case "giao-hang":
+        var trips = Model.Delivery.Sum(r => r.Orders);
+        <div class="kpis">
+            <div class="kpi"><span class="kpi-label">Đơn đã giao</span><b class="kpi-value">@Money.FormatNumber(trips)</b><span class="kpi-sub">Nhân viên cửa hàng tự giao, chi phí nằm trong lương</span></div>
+            <div class="kpi"><span class="kpi-label">Phí giao thu được</span><b class="kpi-value">@Money.Format(Model.Delivery.Sum(r => r.Collected))</b><span class="kpi-sub">@Money.Format(DeliveryService.ShippingFee) mỗi đơn dưới @Money.Format(DeliveryService.FreeShippingFrom)</span></div>
+            <div class="kpi"><span class="kpi-label">Đơn được miễn phí giao</span><b class="kpi-value">@Money.FormatNumber(Model.Delivery.Sum(r => r.FreeTrips))</b><span class="kpi-sub">@(trips > 0 ? Money.Percent((double)Model.Delivery.Sum(r => r.FreeTrips) / trips) : "0%") số đơn giao</span></div>
+        </div>
+        <section class="panel flush">
+            <div class="panel-head pad"><div><h2>Giao hàng theo cửa hàng</h2><p>Bán kính giao @DeliveryService.RadiusKm km, hẹn trong @DeliveryService.PromisedMinutes phút</p></div></div>
+            @if (Model.Delivery.Count == 0)
+            {
+                <p class="empty">Không có đơn giao nào trong kỳ.</p>
+            }
+            else
+            {
+                <div class="table-wrap">
+                    <table class="table">
+                        <thead><tr><th>Cửa hàng</th><th class="num">Đơn giao</th><th class="num">Quãng TB</th><th class="num">Đơn miễn phí giao</th><th class="num">Phí giao thu được</th><th class="num">Doanh thu đơn giao</th></tr></thead>
+                        <tbody>
+                            @foreach (var r in Model.Delivery)
+                            {
+                                <tr>
+                                    <td>@r.Store.Code – @r.Store.Name</td>
+                                    <td class="num">@Money.FormatNumber(r.Orders)</td>
+                                    <td class="num">@Money.FormatNumber(r.AvgKm, 1) km</td>
+                                    <td class="num">@Money.FormatNumber(r.FreeTrips)</td>
+                                    <td class="num">@Money.Format(r.Collected)</td>
+                                    <td class="num">@Money.Format(r.Revenue)</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </section>
+        break;
+}

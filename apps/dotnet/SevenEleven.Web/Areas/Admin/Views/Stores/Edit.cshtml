@@ -1,0 +1,65 @@
+@using SevenEleven.Web.Areas.Admin.Controllers
+@model StoreFormModel
+@{
+    var i = Model.Input;
+    var e = Model.Errors;
+    var isNew = Model.Existing is null;
+    var provinces = ChainAdminService.Provinces.Contains(i.Province) || i.Province is null ? ChainAdminService.Provinces : [.. ChainAdminService.Provinces, i.Province];
+    var hours = ChainAdminService.OpenHourOptions.Any(h => h.Value == i.OpenHours) || i.OpenHours is null ? ChainAdminService.OpenHourOptions : [.. ChainAdminService.OpenHourOptions, (i.OpenHours, i.OpenHours)];
+    var own = Model.Managers.Where(m => Model.Existing is not null && m.StoreId == Model.Existing.Id).ToList();
+    var others = Model.Managers.Except(own).ToList();
+}
+<div class="page-head">
+    <div>
+        <h1>@(isNew ? "Thêm cửa hàng" : $"Sửa cửa hàng {Model.Existing!.Code} – {Model.Existing.Name}")</h1>
+        <p>@(isNew ? "Mã 4 chữ số là mã định danh cửa hàng trên hoá đơn và báo cáo." : $"Khai trương ngày {Model.Existing!.OpenedAt:dd/MM/yyyy}")</p>
+    </div>
+    <a class="btn" asp-action="Index">← Danh sách</a>
+</div>
+<form method="post" asp-action="Save" class="panel form" style="max-width:820px" data-store-form>
+    <input type="hidden" name="Id" value="@i.Id" />
+    <div class="form-grid">
+        <label class="field"><span>Mã cửa hàng</span><input name="Code" value="@i.Code" maxlength="4" inputmode="numeric" placeholder="VD: 1090" class="@Forms.Invalid(e, "Code")" />@Forms.Error(e, "Code")</label>
+        <label class="field"><span>Tên ngắn</span><input name="Name" value="@i.Name" maxlength="60" placeholder="VD: 99 Pasteur" class="@Forms.Invalid(e, "Name")" />@Forms.Error(e, "Name")</label>
+        <label class="field"><span>Địa chỉ</span><input name="Address" value="@i.Address" maxlength="120" placeholder="VD: Số 99 Pasteur" class="@Forms.Invalid(e, "Address")" />@Forms.Error(e, "Address")</label>
+        <label class="field"><span>Phường/xã</span><input name="Ward" value="@i.Ward" maxlength="60" placeholder="VD: Phường Sài Gòn" class="@Forms.Invalid(e, "Ward")" />@Forms.Error(e, "Ward")</label>
+        <label class="field"><span>Tỉnh/thành phố</span><select name="Province" class="@Forms.Invalid(e, "Province")">@foreach (var p in provinces) { <option selected="@(p == i.Province)">@p</option> }</select>@Forms.Error(e, "Province")</label>
+        <label class="field"><span>Số điện thoại</span><input name="Phone" value="@i.Phone" placeholder="VD: 02873001090" class="@Forms.Invalid(e, "Phone")" />@Forms.Error(e, "Phone")</label>
+        <label class="field"><span>Email cửa hàng</span><input name="Email" type="email" value="@i.Email" placeholder="VD: cuahang1090@7eleven.demo" class="@Forms.Invalid(e, "Email")" />@Forms.Error(e, "Email")</label>
+        <label class="field"><span>Giờ mở cửa</span><select name="OpenHours" class="@Forms.Invalid(e, "OpenHours")">@foreach (var (value, label) in hours) { <option value="@value" selected="@(value == i.OpenHours)">@label</option> }</select>@Forms.Error(e, "OpenHours")</label>
+        <label class="field"><span>Trạng thái</span><select name="Status">@foreach (var st in Enum.GetValues<StoreStatus>()) { <option value="@st" selected="@(st == i.Status)">@Labels.Store(st)</option> }</select></label>
+        <label class="field"><span>Quản lý cửa hàng</span>
+            <select name="ManagerId" class="@Forms.Invalid(e, "ManagerId")" data-manager-select>
+                <option value="">Chưa có quản lý</option>
+                @if (own.Count > 0)
+                {
+                    <optgroup label="Thuộc cửa hàng này">@foreach (var m in own) { <option value="@m.Id" selected="@(m.Id == i.ManagerId)">@m.FullName</option> }</optgroup>
+                }
+                <optgroup label="Điều chuyển từ cửa hàng khác">
+                    @foreach (var m in others)
+                    {
+                        var managing = m.Store is not null && m.Store.ManagerId == m.Id;
+                        <option value="@m.Id" selected="@(m.Id == i.ManagerId)" data-warning="@m.FullName sẽ được điều chuyển từ cửa hàng @(m.Store?.Code ?? "—") sang cửa hàng này@(managing ? $"; cửa hàng {m.Store!.Code} sẽ chưa có quản lý" : "")." >@m.FullName · CH @(m.Store?.Code ?? "—")</option>
+                    }
+                </optgroup>
+            </select>
+            <small class="flash flash-warn" data-manager-warning hidden></small>
+            @Forms.Error(e, "ManagerId")
+        </label>
+        <label class="field"><span>Vĩ độ</span><input name="Lat" value="@i.Lat" placeholder="VD: 10.7771" inputmode="decimal" class="@Forms.Invalid(e, "Lat")" />@Forms.Error(e, "Lat")</label>
+        <label class="field"><span>Kinh độ</span><input name="Lng" value="@i.Lng" placeholder="VD: 106.7009" inputmode="decimal" class="@Forms.Invalid(e, "Lng")" />@Forms.Error(e, "Lng")</label>
+    </div>
+    <div class="form-actions">
+        <a class="btn" asp-action="@(isNew ? "Index" : "Detail")" asp-route-id="@i.Id">Huỷ</a>
+        <button class="btn btn-primary" type="submit">@(isNew ? "Thêm cửa hàng" : "Lưu thay đổi")</button>
+    </div>
+</form>
+@section Scripts {
+    <script>
+        document.querySelectorAll("[data-manager-select]").forEach(function (select) {
+            var box = document.querySelector("[data-manager-warning]");
+            function show() { var w = select.selectedOptions[0] && select.selectedOptions[0].getAttribute("data-warning"); box.hidden = !w; box.textContent = w || ""; }
+            select.addEventListener("change", show);
+        });
+    </script>
+}

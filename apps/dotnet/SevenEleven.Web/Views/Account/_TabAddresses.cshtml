@@ -1,0 +1,65 @@
+@using SevenEleven.Web.Infrastructure
+@using SevenEleven.Web.Models.Shop
+@model AccountModel
+@{
+    var c = Model.Customer;
+    string Icon(string label)
+    {
+        var l = label.ToLowerInvariant();
+        if (l.Contains("nhà")) return "house";
+        if (l.Contains("công ty") || l.Contains("văn phòng")) return "briefcase-business";
+        if (l.Contains("trường")) return "school";
+        return "map-pin";
+    }
+}
+<div class="stack-4">
+    <div class="addr-head">
+        <div>
+            <h2 class="sec-title">Sổ địa chỉ</h2>
+            <p class="sec-sub">Địa chỉ mặc định được điền sẵn khi bạn đặt hàng.</p>
+        </div>
+        <a class="btn" href="/Account/Address">@ShopIcons.Svg("plus", 16) Thêm địa chỉ</a>
+    </div>
+    @if (c.Addresses.Count == 0)
+    {
+        <div class="empty boxed">
+            <span class="empty-ic">@ShopIcons.Svg("map-pin", 24)</span>
+            <p class="small muted">Bạn chưa lưu địa chỉ nào. Thêm địa chỉ để đặt hàng nhanh hơn lần sau.</p>
+            <a class="btn btn-sm" href="/Account/Address">@ShopIcons.Svg("plus", 16) Thêm địa chỉ</a>
+        </div>
+    }
+    else
+    {
+        <ul class="addr-grid">
+            @foreach (var a in c.Addresses.OrderByDescending(a => a.IsDefault))
+            {
+                var others = c.Addresses.Count > 1;
+                <li class="address-card addr-card @(a.IsDefault ? "is-default" : null)">
+                    <div class="addr-card-main">
+                        <span class="benefit-ic big">@ShopIcons.Svg(Icon(a.Label), 20)</span>
+                        <div class="min-w-0 flex-1">
+                            <p class="addr-label">@a.Label @if (a.IsDefault) { @Tones.Badge("brand", "Mặc định") }</p>
+                            <p class="small">@a.Recipient <span class="muted">·</span> <span class="tabular">@Fmt.Phone(a.Phone)</span></p>
+                            <p class="small muted">@a.Line, @a.Ward, @a.Province</p>
+                        </div>
+                    </div>
+                    <div class="addr-actions">
+                        <a class="btn btn-outline btn-sm" href="/Account/Address?id=@a.Id">@ShopIcons.Svg("pencil", 14) Sửa</a>
+                        @if (!a.IsDefault)
+                        {
+                            <form method="post" asp-controller="Account" asp-action="DefaultAddress" asp-route-id="@a.Id">
+                                <button class="btn btn-ghost btn-sm" type="submit">Đặt làm mặc định</button>
+                            </form>
+                        }
+                        <form method="post" asp-controller="Account" asp-action="DeleteAddress" asp-route-id="@a.Id" class="ml-auto"
+                              data-dialog-confirm data-dialog-title="Xoá địa chỉ “@a.Label”?"
+                              data-dialog-desc="@($"{a.Line}, {a.Ward}, {a.Province}. {(a.IsDefault && others ? "Đây là địa chỉ mặc định, địa chỉ tiếp theo trong sổ sẽ được đặt làm mặc định." : "Thao tác này không thể hoàn tác.")}")"
+                              data-dialog-cancel="Giữ lại" data-dialog-ok="Xoá địa chỉ" data-dialog-tone="danger">
+                            <button class="btn btn-ghost btn-sm btn-danger-ghost" type="submit" aria-label="Xoá địa chỉ @a.Label">@ShopIcons.Svg("trash", 14) Xoá</button>
+                        </form>
+                    </div>
+                </li>
+            }
+        </ul>
+    }
+</div>

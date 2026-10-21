@@ -1,0 +1,163 @@
+@using SevenEleven.Web.Areas.Admin.Controllers
+@model PromotionListModel
+@{
+    bool canManage = ViewBag.CanManage;
+    var here = Context.Request.Path + Context.Request.QueryString;
+    string TabLink(string tab) => "/Admin/Promotions?" + string.Join("&", new Dictionary<string, string?> { ["tab"] = tab, ["q"] = Model.Query, ["type"] = Model.Type?.ToString() }
+        .Where(kv => !string.IsNullOrEmpty(kv.Value)).Select(kv => $"{kv.Key}={Uri.EscapeDataString(kv.Value!)}"));
+    string Compact(int v) => Money.FormatCompact(v).ToUpperInvariant();
+    string TimeHint(Promotion p, PromotionStatus s)
+    {
+        var now = Model.Now;
+        if (s == PromotionStatus.Ended) return $"kết thúc {Math.Max(1, (int)Math.Ceiling((now - p.EndsAt).TotalDays))} ngày trước";
+        if (s == PromotionStatus.Scheduled) return $"bắt đầu sau {Math.Max(1, (int)Math.Ceiling((p.StartsAt - now).TotalDays))} ngày";
+        var left = p.EndsAt - now;
+        return left.TotalHours < 24 ? "kết thúc trong hôm nay" : $"còn {Math.Max(1, (int)Math.Ceiling(left.TotalDays))} ngày";
+    }
+    var tabLabel = PromotionsController.Tabs.First(t => t.Key == Model.Tab).Label;
+}
+<div class="page-head">
+    <div>
+        <h1>Khuyến mãi</h1>
+        <p>@(canManage
+            ? "Flash sale theo khung giờ, mã giảm giá, mua X tặng Y và voucher thành viên – áp dụng cho toàn chuỗi. Voucher đổi sao xem trong hồ sơ khách hàng."
+            : "Các chương trình đang áp dụng cho toàn chuỗi (chỉ xem). Quản trị chuỗi tạo và điều chỉnh khuyến mãi.")</p>
+    </div>
+    @if (canManage)
+    {
+        <a class="btn btn-primary" asp-action="Edit">@Icons.Svg("plus", 16) Tạo khuyến mãi</a>
+    }
+</div>
+
+<nav class="tabs-line" aria-label="Trạng thái">
+    @foreach (var (key, label, _) in PromotionsController.Tabs)
+    {
+        <a href="@TabLink(key)" class="@(key == Model.Tab ? "active" : null)">@label<span class="n">@Model.Counts[key]</span></a>
+    }
+</nav>
+
+<form method="get" class="toolbar">
+    <input type="hidden" name="tab" value="@Model.Tab" />
+    <label class="search-box">
+        @Icons.Svg("search", 16)
+        <input class="input" name="q" value="@Model.Query" placeholder="Tìm tên hoặc mã khuyến mãi" aria-label="Tìm khuyến mãi" />
+    </label>
+    <select class="input" name="type" aria-label="Loại khuyến mãi" onchange="this.form.submit()">
+        <option value="">Tất cả loại</option>
+        @foreach (var t in new[] { PromotionType.FlashSale, PromotionType.Percent, PromotionType.Fixed, PromotionType.BuyXGetY, PromotionType.MemberVoucher })
+        {
+            <option value="@t" selected="@(t == Model.Type)">@PromotionAdminService.TypeLabel(t)</option>
+        }
+    </select>
+    <button class="btn" type="submit">Lọc</button>
+    <span class="grow"></span>
+    <span class="result-count">@Model.Promotions.Count chương trình</span>
+</form>
+
+@if (Model.Promotions.Count == 0)
+{
+    var searching = !string.IsNullOrWhiteSpace(Model.Query) || Model.Type is not null;
+    <div class="panel">
+        <p class="empty">
+            <b>@(searching ? "Không có khuyến mãi phù hợp" : Model.Tab == "tat-ca" ? "Chưa có khuyến mãi nào" : $"Không có chương trình “{tabLabel.ToLower()}”")</b><br />
+            @(searching ? "Thử từ khoá hoặc loại khuyến mãi khác." : "Chọn tab khác để xem các chương trình còn lại.")
+        </p>
+    </div>
+}
+<div class="cards">
+    @foreach (var (p, status) in Model.Promotions)
+    {
+        var productIds = PricingService.Split(p.ProductIds);
+        var categoryIds = PricingService.Split(p.CategoryIds);
+        var tiers = PricingService.Tiers(p);
+        var live = PricingService.IsLive(p, Model.Now);
+        <article class="card">
+            <div class="card-head">
+                <span class="toolbar" style="gap:6px">
+                    <span class="chip-soft">@PromotionAdminService.TypeLabel(p.Type)</span>
+                    <span class="badge @PromotionAdminService.StatusTone(status)">@PromotionAdminService.StatusLabel(status)</span>
+                    @if (p.Type == PromotionType.FlashSale && status == PromotionStatus.Active)
+                    {
+                        <span class="cell-sub" style="display:inline">@(live ? "Đang trong khung giờ" : "Ngoài khung giờ")</span>
+                    }
+                </span>
+                @if (canManage)
+                {
+                    <form method="post" asp-action="Toggle" class="inline">
+                        <input type="hidden" name="id" value="@p.Id" />
+                        <input type="hidden" name="paused" value="@(p.Status != PromotionStatus.Paused)" />
+                        <input type="hidden" name="returnUrl" value="@here" />
+                        <button class="toggle-btn" type="submit" disabled="@(status == PromotionStatus.Ended)" title="@(status == PromotionStatus.Ended ? "Đã hết hạn" : p.Status == PromotionStatus.Paused ? "Đang tắt" : "Đang bật")">
+                            <span class="switch @(p.Status != PromotionStatus.Paused ? "on" : null)"></span>
+                            <span class="cell-sub" style="display:inline">@(status == PromotionStatus.Ended ? "Đã hết hạn" : p.Status == PromotionStatus.Paused ? "Đang tắt" : "Đang bật")</span>
+                        </button>
+                    </form>
+                }
+            </div>
+            <b style="font-size:15px">@p.Name</b>
+            <span class="cell-sub">@p.Description</span>
+            <b style="color:var(--orange)">
+                @switch (p.Type)
+                {
+                    case PromotionType.Percent:
+                        @($"-{p.Value}%")@(p.MaxDiscount is int max ? $" · tối đa {Money.Format(max)}" : "")@(p.MinOrderValue is int min ? $" · đơn từ {Money.Format(min)}" : "")
+                        break;
+                    case PromotionType.Fixed:
+                        @($"-{Money.Format(p.Value)}")@(p.MinOrderValue is int min2 ? $" · đơn từ {Money.Format(min2)}" : "")
+                        break;
+                    case PromotionType.FlashSale:
+                        @(p.DailyStart is not null ? $"-{p.Value}% · {p.DailyStart}–{p.DailyEnd} hằng ngày" : $"-{p.Value}% cả ngày")
+                        break;
+                    case PromotionType.BuyXGetY:
+                        @($"Mua {p.BuyQuantity} tặng {p.GetQuantity}")@(productIds.Length > 0 ? $" · {productIds.Length} sản phẩm" : "")
+                        break;
+                    default:
+                        @(string.Join("/", tiers.Select(t => "-" + Compact(MembershipService.Info(t).DrinkVoucher))) + " mỗi ly theo hạng")
+                        break;
+                }
+            </b>
+            @if (p.Code is string code)
+            {
+                <button type="button" class="chip-soft chip-brand toggle-btn" data-copy="@code" title="Sao chép mã">@Icons.Svg("copy", 12) @code</button>
+            }
+            else
+            {
+                <span class="cell-sub">Tự áp dụng, không cần mã</span>
+            }
+            <div class="row"><span>Áp dụng</span><span style="text-align:right">
+                @foreach (var id in productIds.Take(4))
+                {
+                    if (Model.Products.GetValueOrDefault(id) is { } pr) { <img class="thumb" src="@pr.Image" alt="@pr.Name" title="@pr.Name" style="width:24px;height:24px" /> }
+                }
+                @{
+                    var parts = new List<string>();
+                    if (productIds.Length > 0) parts.Add($"{productIds.Length} sản phẩm");
+                    if (categoryIds.Length > 0) parts.Add(categoryIds.Length <= 2 ? string.Join(", ", categoryIds.Select(c => Model.Categories.GetValueOrDefault(c, c))) : $"{categoryIds.Length} danh mục");
+                }
+                @(parts.Count > 0 ? string.Join(" + ", parts) : "Toàn bộ sản phẩm")
+            </span></div>
+            <div class="row"><span>Khách hàng</span><span>
+                @if (tiers.Length == 4) { <text>Mọi hạng thành viên</text> }
+                else if (tiers.Length > 0) { foreach (var t in tiers) { <span class="tier-chip @t">@MembershipService.Info(t).Label</span> } }
+                else { <text>Mọi khách hàng</text> }
+            </span></div>
+            <div class="row"><span>Kênh bán</span><span>@string.Join(" · ", PricingService.Channels(p).Select(c => c == SalesChannel.Online ? "Online" : "Tại quầy"))</span></div>
+            <div class="row"><span>Thời gian</span><span style="text-align:right">@p.StartsAt.ToString("dd/MM/yyyy") – @p.EndsAt.ToString("dd/MM/yyyy")<br /><small class="muted">@TimeHint(p, status)</small></span></div>
+            <div class="row"><span>Lượt dùng</span><span>
+                @if (p.UsageLimit is int limit)
+                {
+                    @($"{Money.FormatNumber(p.UsageCount)} / {Money.FormatNumber(limit)}")
+                    <span class="bar-mini @(p.UsageCount >= limit ? "orange" : null)"><span style="width:@(Math.Min(100, p.UsageCount * 100 / Math.Max(1, limit)))%"></span></span>
+                }
+                else
+                {
+                    @($"{Money.FormatNumber(p.UsageCount)} · không giới hạn")
+                }
+            </span></div>
+            @if (canManage)
+            {
+                <a class="btn btn-sm" asp-action="Edit" asp-route-id="@p.Id">@Icons.Svg("edit", 14) Sửa</a>
+            }
+        </article>
+    }
+</div>

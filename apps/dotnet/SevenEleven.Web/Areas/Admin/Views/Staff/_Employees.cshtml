@@ -1,0 +1,55 @@
+@using SevenEleven.Web.Areas.Admin.Controllers
+@model StaffPageModel
+@{
+    var staff = ViewBag.Staff as StaffUser;
+    string Link(int page) => "/Admin/Staff?" + string.Join("&", new Dictionary<string, string?> { ["tab"] = "nhan-vien", ["q"] = Model.Query, ["role"] = Model.Role?.ToString(), ["status"] = Model.Status?.ToString(), ["page"] = page.ToString() }
+        .Where(kv => !string.IsNullOrEmpty(kv.Value)).Select(kv => $"{kv.Key}={Uri.EscapeDataString(kv.Value!)}"));
+    var pager = (Model.Page, Model.Pages, (Func<int, string>)Link);
+    var filtering = !string.IsNullOrWhiteSpace(Model.Query) || Model.Role is not null || Model.Status is not null;
+    string Initials(string name) { var parts = name.Split(' ', StringSplitOptions.RemoveEmptyEntries); return parts.Length >= 2 ? $"{parts[^2][0]}{parts[^1][0]}" : name[..1]; }
+}
+<div class="panel flush">
+    <form method="get" class="toolbar" style="padding:16px">
+        <input type="hidden" name="tab" value="nhan-vien" />
+        <label class="search-box">@Icons.Svg("search", 16)<input class="input" name="q" value="@Model.Query" placeholder="Tìm tên, mã, SĐT hoặc email" aria-label="Tìm nhân viên" /></label>
+        <select class="input" name="role" aria-label="Vai trò" onchange="this.form.submit()">
+            <option value="">Tất cả vai trò</option>
+            @foreach (var r in Enum.GetValues<StaffRole>()) { <option value="@r" selected="@(r == Model.Role)">@Labels.Role(r)</option> }
+        </select>
+        <select class="input" name="status" aria-label="Trạng thái" onchange="this.form.submit()">
+            <option value="">Tất cả trạng thái</option>
+            @foreach (var st in Enum.GetValues<EmployeeStatus>()) { <option value="@st" selected="@(st == Model.Status)">@ChainAdminService.EmployeeStatusLabel(st) (@Model.StatusCounts.GetValueOrDefault(st))</option> }
+        </select>
+        <button class="btn" type="submit">Lọc</button>
+        <span class="grow"></span>
+        <span class="result-count">@Model.EmployeeTotal nhân viên</span>
+    </form>
+    @if (Model.Employees.Count == 0)
+    {
+        <p class="empty">@if (filtering) { <b>Không tìm thấy nhân viên</b><br /><text>Thử từ khoá, vai trò hoặc trạng thái khác.</text> } else { <b>Chưa có nhân viên</b><br /><text>Thêm nhân viên đầu tiên cho cửa hàng.</text> }</p>
+    }
+    else
+    {
+        <div class="table-wrap">
+            <table class="table">
+                <thead><tr><th>Mã</th><th>Họ tên</th><th>Vai trò</th>@if (Model.Store is null) { <th>Cửa hàng</th> }<th>SĐT</th><th>Email</th><th>Ngày vào làm</th><th>Trạng thái</th></tr></thead>
+                <tbody>
+                    @foreach (var e in Model.Employees)
+                    {
+                        <tr class="@(e.Status == EmployeeStatus.Inactive ? "muted-row" : null)">
+                            <td><a class="code-link" asp-action="Employee" asp-route-id="@e.Id">@e.Code</a></td>
+                            <td><a class="person" asp-action="Employee" asp-route-id="@e.Id"><span class="avatar-sm">@Initials(e.FullName)</span><span>@e.FullName @if (e.Id == staff?.Id) { <span class="chip-soft chip-brand">Bạn</span> }</span></a></td>
+                            <td>@Labels.Role(e.Role)</td>
+                            @if (Model.Store is null) { <td>@(e.Store is null ? "Toàn chuỗi" : $"{e.Store.Code} – {e.Store.Name}")</td> }
+                            <td>@Phone.Format(e.Phone)</td>
+                            <td>@e.Email</td>
+                            <td>@e.HiredAt.ToString("dd/MM/yyyy")</td>
+                            <td><span class="badge @ChainAdminService.EmployeeStatusTone(e.Status)">@ChainAdminService.EmployeeStatusLabel(e.Status)</span></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        <partial name="_Pager" model="pager" />
+    }
+</div>

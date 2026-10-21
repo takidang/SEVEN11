@@ -1,0 +1,85 @@
+@using System.Globalization
+@using SevenEleven.Web.Areas.Admin.Controllers
+@model StoreDetailModel
+@{
+    var s = Model.Store;
+    bool canManage = ViewBag.CanManage;
+    var staff = ViewBag.Staff as StaffUser;
+    var max = Math.Max(1, Model.Metrics.Days.Max(d => d.Revenue));
+    var working = Model.Staff.Count(e => e.Status != EmployeeStatus.Inactive);
+    string Coord(double v) => v.ToString("0.0000", CultureInfo.InvariantCulture);
+}
+<div class="page-head">
+    <div>
+        <h1>@s.Code – @s.Name <span class="badge @(s.Status == StoreStatus.Active ? "fresh" : s.Status == StoreStatus.Maintenance ? "warning" : "neutral")" style="vertical-align:middle">@Labels.Store(s.Status)</span></h1>
+        <p>@s.Address, @s.Ward, @s.Province</p>
+    </div>
+    <div class="page-actions">
+        <a class="btn" asp-action="Index">← Danh sách</a>
+        @if (Model.CanSeeSchedule)
+        {
+            if (staff?.IsAdmin == true)
+            {
+                <form method="post" asp-action="Schedule" asp-route-id="@s.Id" class="inline"><button class="btn" type="submit">@Icons.Svg("staff", 16) Xem lịch ca</button></form>
+            }
+            else
+            {
+                <a class="btn" href="/Admin/Staff?tab=lich-ca">@Icons.Svg("staff", 16) Xem lịch ca</a>
+            }
+        }
+        @if (canManage) { <a class="btn btn-primary" asp-action="Edit" asp-route-id="@s.Id">Sửa thông tin</a> }
+    </div>
+</div>
+<div class="detail-grid">
+    <div style="display:grid;gap:16px">
+        <section class="panel flush">
+            <div class="panel-head pad"><div><h2>Doanh thu 7 ngày</h2><p>@Money.Format(Model.Metrics.WeekRevenue) · @Model.Metrics.WeekOrders đơn</p></div></div>
+            <div class="table-wrap">
+                <table class="table">
+                    <thead><tr><th>Ngày</th><th></th><th class="num">Đơn</th><th class="num">Doanh thu</th></tr></thead>
+                    <tbody>
+                        @foreach (var d in Model.Metrics.Days.AsEnumerable().Reverse())
+                        {
+                            <tr>
+                                <td>@(d.Day.Date == DateTime.Today ? "Hôm nay" : $"{TimeText.WeekdayShort(d.Day)} {d.Day:dd/MM}")</td>
+                                <td style="width:40%"><div class="hbar-track"><div class="hbar" style="width:@((d.Revenue * 100.0 / max).ToString("0.#", CultureInfo.InvariantCulture))%"></div></div></td>
+                                <td class="num">@d.Orders</td>
+                                <td class="num">@Money.Format(d.Revenue)</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </section>
+        <section class="panel">
+            <div class="panel-head"><div><h2>Nhân viên</h2><p>@working đang làm việc</p></div></div>
+            @if (Model.Staff.Count == 0)
+            {
+                <p class="muted" style="margin:0">Cửa hàng chưa có nhân viên.</p>
+            }
+            else
+            {
+                <ul class="list-plain">
+                    @foreach (var e in Model.Staff)
+                    {
+                        <li style="display:flex;justify-content:space-between;gap:8px">
+                            <span><b style="font-weight:500">@e.FullName</b><span class="cell-sub">@(e.Id == s.ManagerId ? "Quản lý cửa hàng" : Labels.Role(e.Role)) · @e.Code · @Phone.Format(e.Phone)</span></span>
+                            <span class="badge @ChainAdminService.EmployeeStatusTone(e.Status)">@ChainAdminService.EmployeeStatusLabel(e.Status)</span>
+                        </li>
+                    }
+                </ul>
+            }
+        </section>
+    </div>
+    <section class="panel">
+        <h2 style="font-size:15px;margin-bottom:10px">Thông tin</h2>
+        <dl class="kv">
+            <dt>Điện thoại</dt><dd>@Phone.Format(s.Phone)</dd>
+            <dt>Email</dt><dd>@s.Email</dd>
+            <dt>Giờ mở cửa</dt><dd>@s.OpenHours</dd>
+            <dt>Khai trương</dt><dd>@s.OpenedAt.ToString("dd/MM/yyyy")</dd>
+            <dt>Quản lý</dt><dd>@(Model.Manager is { } m ? $"{m.FullName} · {Phone.Format(m.Phone)}" : "Chưa có quản lý")</dd>
+            <dt>Toạ độ</dt><dd>@Coord(s.Lat), @Coord(s.Lng) · <a class="link" target="_blank" rel="noopener" href="https://www.google.com/maps/search/?api=1&query=@Coord(s.Lat),@Coord(s.Lng)">Xem bản đồ</a></dd>
+        </dl>
+    </section>
+</div>

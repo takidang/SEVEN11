@@ -1,0 +1,134 @@
+@{
+    var staff = ViewBag.Staff as StaffUser;
+    var stores = ViewBag.Stores as List<Store> ?? [];
+    var scopeStore = ViewBag.ScopeStore as Store;
+    var scopeId = ViewBag.ScopeStoreId as string;
+    int pending = ViewBag.PendingCount ?? 0;
+    var controller = ViewContext.RouteData.Values["controller"] as string;
+    var here = Context.Request.Path + Context.Request.QueryString;
+    var role = staff?.Role ?? StaffRole.Cashier;
+    // Nhóm menu như bản Next.js; mục nào vai trò không xem được thì ẩn.
+    var groups = new (string Title, (string Controller, string Label, string Icon)[] Items)[]
+    {
+        ("Bán hàng", [("Dashboard", "Tổng quan", "dashboard"), ("Pos", "Bán tại quầy", "pos"), ("Orders", "Đơn hàng", "orders")]),
+        ("Hàng hoá", [("Products", "Sản phẩm", "product"), ("Stock", "Kho hàng", "stock"), ("Purchasing", "Nhập hàng", "purchasing"), ("Suppliers", "Nhà cung cấp", "supplier")]),
+        ("Khách & ưu đãi", [("Customers", "Khách hàng", "users"), ("Promotions", "Khuyến mãi", "promotion")]),
+        ("Vận hành", [("Staff", "Nhân viên & ca", "staff"), ("Stores", "Cửa hàng", "store"), ("Reports", "Báo cáo", "reports")]),
+    };
+}
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] – Quản lý 7-Eleven</title>
+    <link rel="stylesheet" href="~/css/admin.css" asp-append-version="true" />
+    <link rel="icon" href="~/img/logo-mark.png" />
+    <script>
+        // Ảnh sản phẩm lấy từ CDN ngoài: ảnh nào không tải được thì thay bằng ô giữ chỗ (như ProductImage bên Next.js).
+        document.addEventListener("error", function (e) {
+            var img = e.target;
+            if (!(img instanceof HTMLImageElement) || img.dataset.fallback) return;
+            img.dataset.fallback = "1";
+            img.classList.add("img-fallback");
+            img.src = "data:image/svg+xml," + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48"><rect width="48" height="48" fill="#f3f4f6"/><g fill="none" stroke="#c4c8ce" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" transform="translate(12 12)"><path d="M11 21.73a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73z"/><path d="M12 22V12"/><path d="m3.3 7 8.7 5 8.7-5"/></g></svg>');
+        }, true);
+    </script>
+</head>
+<body class="admin @(ViewData["BodyClass"] as string)" data-orders-feed="@(staff is not null && Permissions.CanView(role, "Orders") ? Url.Action("Feed", "Orders", new { area = "Admin" }) : "")">
+    <div class="shell">
+        <aside class="side">
+            <a class="side-logo" asp-area="Admin" asp-controller="@(staff?.IsCashier == true ? "Pos" : "Dashboard")" asp-action="Index">
+                <img src="~/img/logo-mark.png" alt="" />
+                <span><b>7-Eleven</b><small>Quản lý cửa hàng</small></span>
+            </a>
+            <nav class="side-nav" aria-label="Phân hệ">
+                @foreach (var group in groups)
+                {
+                    var items = group.Items.Where(i => Permissions.CanView(role, i.Controller)).ToList();
+                    if (items.Count == 0) continue;
+                    <span class="side-group">@group.Title</span>
+                    @foreach (var item in items)
+                    {
+                        <a asp-area="Admin" asp-controller="@item.Controller" asp-action="Index"
+                           class="@(controller == item.Controller ? "active" : null)" aria-current="@(controller == item.Controller ? "page" : null)">
+                            @Icons.Svg(item.Icon)
+                            <span>@item.Label</span>
+                            @if (item.Controller == "Orders")
+                            {
+                                <span class="nav-count" title="Đơn online chờ xác nhận" data-pending-count hidden="@(pending == 0)">@pending</span>
+                            }
+                        </a>
+                    }
+                }
+            </nav>
+            <a class="side-foot" asp-area="" asp-controller="Home" asp-action="Index" target="_blank">
+                @Icons.Svg("arrow", 16) Xem cửa hàng online
+            </a>
+        </aside>
+
+        <div class="main">
+            <header class="topbar">
+                <div class="scope">
+                    @Icons.Svg("store", 16)
+                    @if (staff?.IsAdmin == true)
+                    {
+                        <form method="post" asp-area="Admin" asp-controller="Scope" asp-action="Set">
+                            <input type="hidden" name="returnUrl" value="@here" />
+                            <select name="storeId" onchange="this.form.submit()" aria-label="Phạm vi xem">
+                                <option value="">Toàn chuỗi · @stores.Count cửa hàng</option>
+                                @foreach (var s in stores)
+                                {
+                                    <option value="@s.Id" selected="@(s.Id == scopeId)">@s.Code – @s.Name@(s.Status == StoreStatus.Active ? "" : $" ({Labels.Store(s.Status)})")</option>
+                                }
+                            </select>
+                            <noscript><button type="submit">Xem</button></noscript>
+                        </form>
+                    }
+                    else if (scopeStore is not null)
+                    {
+                        <span class="scope-fixed">Cửa hàng @scopeStore.Code – @scopeStore.Name</span>
+                    }
+                </div>
+                @if (staff is not null)
+                {
+                    <details class="user-menu">
+                        <summary>
+                            <span class="avatar">@staff.Name.Split(' ').Last()[..1]</span>
+                            <span class="who"><b>@staff.Name</b><small>@Labels.Role(staff.Role)</small></span>
+                        </summary>
+                        <div class="menu">
+                            <p class="menu-note">@staff.Email</p>
+                            @if (staff.IsAdmin)
+                            {
+                                <form method="post" asp-area="Admin" asp-controller="Demo" asp-action="Reset"
+                                      data-confirm="Tạo lại toàn bộ dữ liệu mẫu tính tới hôm nay? Tài khoản khách tự đăng ký và đơn tự đặt sẽ mất. Mất khoảng 10 giây.">
+                                    <button type="submit">@Icons.Svg("refresh", 16) Tạo lại dữ liệu mẫu</button>
+                                </form>
+                            }
+                            <form method="post" asp-area="Admin" asp-controller="Account" asp-action="Logout">
+                                <button type="submit">@Icons.Svg("logout", 16) Đăng xuất</button>
+                            </form>
+                        </div>
+                    </details>
+                }
+            </header>
+
+            <main class="content">
+                @if (TempData["Toast"] is string toast)
+                {
+                    <div class="flash flash-ok" role="status">@Icons.Svg("check", 16) @toast</div>
+                }
+                @if (TempData["Error"] is string error)
+                {
+                    <div class="flash flash-error" role="alert">@Icons.Svg("alert", 16) @error</div>
+                }
+                @RenderBody()
+            </main>
+            <footer class="admin-foot">Đồ án môn học, không phải hệ thống chính thức của 7-Eleven. Dữ liệu chỉ dùng để minh hoạ.<span class="engine" title="Phần tính tiền giỏ hàng, flash sale, sao vàng">Lõi tính giá: @SevenEleven.Core.Services.Pricing.PricingEngine.Current.Name</span></footer>
+        </div>
+    </div>
+    <script src="~/js/admin.js" asp-append-version="true"></script>
+    @await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>

@@ -1,0 +1,60 @@
+@using SevenEleven.Web.Infrastructure
+@inject ShopContext Shop
+@model string
+@{
+    // Model: tiền tố id để thanh bên và menu điện thoại không trùng id.
+    var prefix = Model ?? "nav";
+    var path = Context.Request.Path.Value ?? "/";
+    var activeSlug = ViewBag.ActiveCategory as string;
+    var activeSub = Context.Request.Query["nhom"].ToString();
+    (string Href, string Label)[] promoLinks =
+    [
+        (ShopUrls.Promotions, "Flash sale & khuyến mãi"),
+        (ShopUrls.Membership, "Chương trình thành viên"),
+        (ShopUrls.Stores, "Danh sách cửa hàng"),
+    ];
+}
+<nav class="cnav" aria-label="Danh mục sản phẩm">
+    <div class="cnav-head">Danh mục sản phẩm</div>
+    <ul class="cnav-list">
+        @foreach (var c in Shop.Categories)
+        {
+            var active = c.Slug == activeSlug;
+            var listId = $"{prefix}-{c.Id}";
+            <li>
+                <div class="cnav-row">
+                    <a class="cnav-link @(active ? "active" : null)" href="@ShopUrls.Category(c.Slug)" aria-current="@(active && string.IsNullOrEmpty(activeSub) ? "page" : null)">
+                        <span class="trunc">@c.Name</span>
+                        @if (c.IsHot)
+                        {
+                            <span class="hot-tag">HOT</span>
+                        }
+                    </a>
+                    @if (c.Subcategories.Count > 0)
+                    {
+                        <button type="button" class="cnav-toggle" data-cnav-toggle data-name="@c.Name" aria-controls="@listId"
+                                aria-expanded="@(active ? "true" : "false")" aria-label="@((active ? "Thu gọn " : "Mở ") + c.Name)">
+                            @ShopIcons.Svg("chevron-down", 16)
+                        </button>
+                    }
+                </div>
+                @if (c.Subcategories.Count > 0)
+                {
+                    <ul class="cnav-sub" id="@listId" hidden="@(!active)">
+                        @foreach (var s in c.Subcategories)
+                        {
+                            <li><a href="@ShopUrls.Category(c.Slug, s.Slug)" class="@(active && activeSub == s.Slug ? "active" : null)">@s.Name</a></li>
+                        }
+                    </ul>
+                }
+            </li>
+        }
+    </ul>
+    <div class="cnav-head">Khuyến mãi &amp; ưu đãi</div>
+    <ul class="cnav-promos">
+        @foreach (var (href, label) in promoLinks)
+        {
+            <li><a href="@href" class="@(path == href ? "active" : null)">@label</a></li>
+        }
+    </ul>
+</nav>

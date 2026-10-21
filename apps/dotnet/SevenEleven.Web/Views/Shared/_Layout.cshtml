@@ -1,0 +1,185 @@
+@using SevenEleven.Core.Models
+@using SevenEleven.Core.Services
+@using SevenEleven.Web.Infrastructure
+@inject ShopContext Shop
+@inject Microsoft.AspNetCore.Antiforgery.IAntiforgery Antiforgery
+@{
+    var title = ViewData["Title"] as string;
+    var pageTitle = string.IsNullOrEmpty(title) || title == "Trang chủ" ? "7-Eleven – Mở cửa 24 giờ, giao hàng 24 phút" : $"{title} · 7-Eleven";
+    var customer = Shop.Customer;
+    var count = Shop.CartCount;
+    var here = (Context.Request.Path.Value ?? "/") + Context.Request.QueryString;
+    var token = Antiforgery.GetAndStoreTokens(Context).RequestToken;
+    var toasts = Toasts.Take(TempData);
+    var delivery = customer is null ? null : Shop.Delivery;
+    var address = delivery?.Address;
+    var tier = customer is null ? null : MembershipService.Info(customer.Tier);
+}
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#007350" />
+    <meta name="description" content="Đồ án quản lý chuỗi cửa hàng tiện lợi lấy cảm hứng từ 7-Eleven: đặt hàng online, bán tại quầy, tồn kho, khuyến mãi và báo cáo." />
+    <meta name="rvt" content="@token" />
+    <title>@pageTitle</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:ital,wdth,wght@0,75..100,400..900;1,75..100,400..900&display=swap" />
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/shop.css" asp-append-version="true" />
+    <link rel="icon" href="~/img/logo-mark.png" />
+</head>
+<body class="shop" data-age-ok="@(Shop.AgeConfirmed ? "true" : "false")">
+    <a class="skip-link" href="#noi-dung">Bỏ qua tới nội dung</a>
+    <header class="hdr">
+        <div class="hdr-in">
+            <div class="hdr-left">
+                <a class="hdr-logo" href="/" aria-label="Trang chủ"><img src="~/img/logo-mark.png" alt="7-Eleven" width="40" height="40" /></a>
+                @if (customer is not null && customer.Addresses.Count > 0)
+                {
+                    <details class="deliver" data-dropdown>
+                        <summary class="deliver-btn" aria-label="Giao đến: @(address is null ? "Nhập địa chỉ giao hàng" : $"{address.Line}, {address.Ward}")">
+                            <span class="deliver-k">Giao đến:</span>
+                            <span class="deliver-v">
+                                @ShopIcons.Svg("map-pin", 18, "ic-pin")
+                                <span class="trunc">@(address is null ? "Nhập địa chỉ giao hàng" : $"{address.Line}, {address.Ward}")</span>
+                                @ShopIcons.Svg("chevron-down", 16, "ic-chev")
+                            </span>
+                        </summary>
+                        <div class="dropdown deliver-menu">
+                            <p class="dropdown-title">Giao hàng tới</p>
+                            @foreach (var a in customer.Addresses.OrderByDescending(a => a.IsDefault))
+                            {
+                                var active = a.Id == address?.Id;
+                                <form method="post" asp-controller="Cart" asp-action="Address">
+                                    <input type="hidden" name="addressId" value="@a.Id" />
+                                    <input type="hidden" name="returnUrl" value="@here" />
+                                    <button type="submit" class="dd-item deliver-opt @(active ? "active" : "")" aria-pressed="@(active ? "true" : "false")">
+                                        <b>@a.Label</b>
+                                        <small>@a.Line, @a.Ward, @a.Province</small>
+                                    </button>
+                                </form>
+                            }
+                            <hr />
+                            <a class="deliver-add" href="/Account/Address?returnUrl=@Uri.EscapeDataString(here)">@ShopIcons.Svg("plus", 16) Thêm địa chỉ mới</a>
+                        </div>
+                    </details>
+                }
+                else
+                {
+                    <a class="deliver deliver-btn" href="@(customer is null ? ShopUrls.SignInNext(here) : "/Account/Address?returnUrl=" + Uri.EscapeDataString(here))">
+                        <span class="deliver-k">Giao đến:</span>
+                        <span class="deliver-v">
+                            @ShopIcons.Svg("map-pin", 18, "ic-pin")
+                            <span class="trunc">Nhập địa chỉ giao hàng</span>
+                            @ShopIcons.Svg("chevron-down", 16, "ic-chev")
+                        </span>
+                    </a>
+                }
+                <div class="hdr-icons">
+                    <button type="button" class="round-btn hdr-menu-btn" data-dialog-open="menu-sheet" aria-label="Mở danh mục">@ShopIcons.Svg("menu", 20)</button>
+                    <partial name="_HeaderIcons" />
+                </div>
+            </div>
+            <form class="hdr-search" role="search" action="@ShopUrls.Search" method="get">
+                @ShopIcons.Svg("search", 20)
+                <input type="search" name="q" value="@(ViewBag.Query as string)" placeholder="Tìm gì cũng có, mở cửa 24 giờ, giao hàng 24 phút" aria-label="Tìm sản phẩm" autocomplete="off" />
+            </form>
+            <div class="hdr-icons hdr-icons-md">
+                <button type="button" class="round-btn hdr-menu-btn" data-dialog-open="menu-sheet" aria-label="Mở danh mục">@ShopIcons.Svg("menu", 20)</button>
+                <partial name="_HeaderIcons" />
+            </div>
+        </div>
+    </header>
+
+    <div class="frame">
+        <aside class="side">
+            <a class="side-logo" href="/" aria-label="Trang chủ"><img src="~/img/logo-wordmark.png" alt="7-Eleven" /></a>
+            <partial name="_CategoryNav" model="@("side")" />
+        </aside>
+        <div class="frame-main">
+            <main class="main" id="noi-dung">
+                @RenderBody()
+            </main>
+            <footer class="ftr">
+                <div class="ftr-grid">
+                    <div class="ftr-brand">
+                        <img src="~/img/logo-wordmark.png" alt="7-Eleven" />
+                        <p class="ftr-tag">@ShopIcons.Svg("bike", 16) Mở cửa 24 giờ, giao nhanh trong 24 phút</p>
+                    </div>
+                    <div>
+                        <h3>Danh mục</h3>
+                        <ul>
+                            <li><a href="@ShopUrls.Stores">Danh sách cửa hàng</a></li>
+                            <li><a href="@ShopUrls.Membership">Chương trình thành viên</a></li>
+                            <li><a href="@ShopUrls.Promotions">Khuyến mãi &amp; ưu đãi</a></li>
+                            <li><a href="@ShopUrls.AccountTab("don-hang")">Tra cứu đơn hàng</a></li>
+                        </ul>
+                    </div>
+                    <div>
+                        <h3>Dành cho nhân viên</h3>
+                        <ul>
+                            <li><a href="/Admin/Account/Login">Đăng nhập quản lý</a></li>
+                            <li><a href="/Admin/Pos">Bán hàng tại quầy</a></li>
+                        </ul>
+                    </div>
+                    <div>
+                        <h3>Liên hệ</h3>
+                        <ul>
+                            <li>@ShopIcons.Svg("phone", 16) 1900 0711 (demo)</li>
+                            <li>@ShopIcons.Svg("mail", 16) cskh@@7eleven.demo</li>
+                        </ul>
+                    </div>
+                </div>
+                <p class="ftr-note">
+                    Đồ án môn học – hệ thống quản lý chuỗi cửa hàng tiện lợi, lấy cảm hứng từ 7-Eleven Việt Nam.
+                    <strong>Đây không phải website chính thức của 7-Eleven</strong>; hình ảnh sản phẩm dùng cho mục đích học tập.
+                </p>
+            </footer>
+        </div>
+    </div>
+
+    <dialog class="sheet" id="menu-sheet" aria-label="Danh mục">
+        <div class="sheet-head">
+            <img src="~/img/logo-mark.png" alt="" /> Danh mục
+            <button type="button" class="btn-close" data-close aria-label="Đóng">@ShopIcons.Svg("x", 18)</button>
+        </div>
+        <div data-nav-clone></div>
+        <div class="sheet-foot"><a class="link" href="/Admin/Account/Login">Đăng nhập khu vực nhân viên →</a></div>
+    </dialog>
+
+    <dialog class="modal" id="age-gate" aria-labelledby="age-gate-title">
+        <div class="modal-body">
+            <h2 class="modal-title" id="age-gate-title">Sản phẩm giới hạn độ tuổi</h2>
+            <p class="modal-desc">Đồ uống có cồn chỉ bán cho khách từ đủ 18 tuổi trở lên. Nhân viên giao hàng có thể kiểm tra giấy tờ tuỳ thân khi nhận hàng.</p>
+            <div class="modal-foot">
+                <button type="button" class="btn btn-outline" data-close>Để sau</button>
+                <button type="button" class="btn" id="age-ok">Tôi đã đủ 18 tuổi</button>
+            </div>
+        </div>
+    </dialog>
+
+    <dialog class="modal" id="confirm-dialog" aria-labelledby="confirm-title">
+        <div class="modal-body">
+            <h2 class="modal-title" id="confirm-title">Xác nhận</h2>
+            <p class="modal-desc"></p>
+            <div class="modal-foot">
+                <button type="button" class="btn btn-outline" data-close data-confirm-cancel>Huỷ</button>
+                <button type="button" class="btn" data-confirm-ok>Đồng ý</button>
+            </div>
+        </div>
+    </dialog>
+
+    <div class="toasts" id="toasts" aria-live="polite">
+        @foreach (var t in toasts)
+        {
+            <partial name="_Toast" model="t" />
+        }
+    </div>
+
+    <script src="~/js/shop.js" asp-append-version="true"></script>
+    @await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>

@@ -1,0 +1,31 @@
+@model HBarList
+@if (Model.Bars.Count == 0)
+{
+    <p class="empty">Chưa có số liệu trong khoảng này.</p>
+}
+else
+{
+    <ul class="hbars">
+        @foreach (var b in Model.Bars)
+        {
+            <li>
+                <div class="hbar-text">
+                    @if (b.Href is string href)
+                    {
+                        <a href="@href">@b.Label</a>
+                    }
+                    else
+                    {
+                        <span>@b.Label</span>
+                    }
+                    @if (b.Sub is string sub)
+                    {
+                        <small>@sub</small>
+                    }
+                </div>
+                <div class="hbar-track" title="@b.ValueText"><div class="hbar @(b.Negative ? "neg" : null)" style="width:@Model.Width(b.Value)%"></div></div>
+                <b class="hbar-value @(b.Negative ? "neg" : null)">@b.ValueText</b>
+            </li>
+        }
+    </ul>
+}

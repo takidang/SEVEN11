@@ -1,0 +1,246 @@
+@using SevenEleven.Web.Areas.Admin.Controllers
+@model BillModel
+@{
+    var p = Model.Pricing;
+    var c = Model.Customer;
+    var restricted = p.Lines.Where(l => l.Product.AgeRestricted || l.Product.Category?.AgeRestricted == true).Select(l => l.Product.Name).ToList();
+    var canPay = p.Lines.Count > 0 && p.CodeError is null && Model.CanSell;
+}
+<aside class="bill" id="bill" aria-live="polite">
+    @* Màn hình hẹp: hoá đơn nằm dưới danh sách sản phẩm, thanh này luôn ở đáy để chạm là tới hoá đơn. *@
+    <a class="bill-dock" href="#bill-top">@Icons.Svg("orders", 16) Hoá đơn · @p.ItemCount sản phẩm <b class="tabular">@Money.Format(p.Total)</b></a>
+    <div class="panel" style="display:grid;gap:10px" id="bill-top">
+        <div class="panel-head bill-head" style="margin:0">
+            <h2>Hoá đơn · @p.ItemCount sản phẩm</h2>
+            <div class="bill-tools">
+                <button class="btn btn-sm" type="button" data-open-dialog="held-dialog">@Icons.Svg("pause", 14) Bill đang giữ <span class="count-dot @(Model.Held.Count > 0 ? "on" : null)">@Model.Held.Count</span></button>
+                <form method="post" asp-action="Hold" data-fetch="#bill">
+                    <button class="btn btn-sm" type="submit" disabled="@(p.Lines.Count == 0)">Tạm giữ</button>
+                </form>
+                @if (p.Lines.Count > 0)
+                {
+                    <form method="post" asp-action="Clear" data-fetch="#bill" data-confirm="Huỷ hoá đơn đang bấm?">
+                        <button class="btn btn-sm btn-danger" type="submit">Huỷ</button>
+                    </form>
+                }
+            </div>
+        </div>
+
+        @if (Model.Message is string message)
+        {
+            <div class="flash @(Model.IsError ? "flash-error" : "flash-ok")" role="status">@message</div>
+        }
+
+        @if (p.Lines.Count == 0)
+        {
+            <p class="empty" style="padding:16px 0">Quét mã vạch hoặc bấm "Thêm" ở sản phẩm để bắt đầu.</p>
+        }
+        else
+        {
+            <ul class="bill-lines">
+                @foreach (var l in p.Lines)
+                {
+                    var inStock = Model.Stock.GetValueOrDefault(l.Product.Id);
+                    <li>
+                        <div>
+                            <div class="name">@l.Product.Name</div>
+                            <div class="cell-sub">
+                                @Money.Format(l.SalePrice)@if (l.SalePrice < l.UnitPrice) { <s style="margin-left:4px">@Money.Format(l.UnitPrice)</s> }
+                                @if (l.PromoLabel is string label) { <span class="promo">@label</span> }
+                            </div>
+                            @if (l.Quantity > inStock)
+                            {
+                                <div class="cell-sub neg">Cửa hàng chỉ còn @inStock @l.Product.Unit</div>
+                            }
+                        </div>
+                        <div style="text-align:right;display:grid;gap:4px;justify-items:end">
+                            <form method="post" asp-action="Set" data-fetch="#bill" class="qty">
+                                <input type="hidden" name="productId" value="@l.Product.Id" />
+                                <button name="quantity" value="@(l.Quantity - 1)" aria-label="Bớt một">@Icons.Svg("minus", 14)</button>
+                                <span>@l.Quantity</span>
+                                <button name="quantity" value="@(l.Quantity + 1)" aria-label="Thêm một">@Icons.Svg("plus", 14)</button>
+                            </form>
+                            <b class="tabular">@Money.Format(l.LineTotal)</b>
+                        </div>
+                    </li>
+                }
+            </ul>
+        }
+    </div>
+
+    <div class="panel" style="display:grid;gap:10px">
+        <h2 style="font-size:15px">Thành viên</h2>
+        @if (c is not null)
+        {
+            var tier = MembershipService.Info(c.Tier);
+            <div class="member-card">
+                <div>
+                    <b>@c.FullName</b> <span class="tier-chip @c.Tier">@tier.Label</span>
+                    <div class="cell-sub">@Phone.Format(c.Phone) · ★ @c.Stars sao · <a asp-controller="Customers" asp-action="Detail" asp-route-id="@c.Id">Hồ sơ</a></div>
+                </div>
+                <form method="post" asp-action="RemoveMember" data-fetch="#bill">
+                    <button class="btn btn-sm" type="submit">Bỏ</button>
+                </form>
+            </div>
+        }
+        else
+        {
+            <form method="post" asp-action="Member" data-fetch="#bill" class="inline-form">
+                <input class="input" name="phone" type="tel" inputmode="numeric" value="@Model.Phone" placeholder="SĐT khách thành viên" aria-label="Số điện thoại thành viên" data-pos-phone />
+                <button class="btn" type="submit">Tìm <kbd class="kbd">F4</kbd></button>
+            </form>
+            @if (Model.Phone is string phone && Model.IsError)
+            {
+                <form method="post" asp-action="Register" data-fetch="#bill" class="inline-form">
+                    <input type="hidden" name="phone" value="@phone" />
+                    <input class="input" name="fullName" maxlength="60" placeholder="Nguyễn Văn A" aria-label="Họ tên khách để đăng ký nhanh" />
+                    <button class="btn" type="submit">Đăng ký</button>
+                </form>
+            }
+            <p class="cell-sub" style="margin:0">Thành viên được giảm đồ uống theo hạng và tích sao vàng.</p>
+        }
+
+        <form method="post" asp-action="Code" data-fetch="#bill" class="inline-form">
+            <input class="input" name="code" value="@Model.Code" placeholder="Mã giảm giá / voucher" aria-label="Mã giảm giá" style="text-transform:uppercase" />
+            <button class="btn" type="submit">Áp dụng</button>
+        </form>
+        @if (p.CodeError is string codeError)
+        {
+            <div class="flash flash-error" style="font-size:13px">
+                @codeError
+                <form method="post" asp-action="Code" data-fetch="#bill" class="inline">
+                    <input type="hidden" name="code" value="" />
+                    <button class="btn btn-sm" type="submit">Gỡ mã</button>
+                </form>
+            </div>
+        }
+    </div>
+
+    <div class="panel" style="display:grid;gap:8px">
+        <div class="sum-row"><span>Tạm tính</span><span class="tabular">@Money.Format(p.Subtotal)</span></div>
+        @foreach (var d in p.Discounts)
+        {
+            <div class="sum-row" style="color:var(--brand)"><span>@d.Label</span><span class="tabular">−@Money.Format(d.Amount)</span></div>
+        }
+        <div class="sum-total"><span>Khách trả</span><span class="tabular">@Money.Format(p.Total)</span></div>
+        @if (c is not null)
+        {
+            var (stars, _) = StarService.Earn(c.StarCarry, p.EligibleSpend);
+            <p class="cell-sub" style="margin:0">Hoá đơn này tích thêm ★ @stars sao cho thành viên</p>
+        }
+        <button class="btn btn-primary btn-lg btn-block" type="button" data-open-dialog="pay-dialog" data-pay-open disabled="@(!canPay)">
+            Thanh toán @Money.Format(p.Total) <kbd class="kbd on-brand">F9</kbd>
+        </button>
+    </div>
+
+    <dialog id="held-dialog" class="modal" aria-labelledby="held-title">
+        <div class="modal-head">
+            <h2 id="held-title">Bill đang giữ</h2>
+            <p class="muted">Mở lại một bill để tiếp tục thanh toán. Bill đang bán dở sẽ được tạm giữ thay thế.</p>
+        </div>
+        @if (Model.Held.Count == 0)
+        {
+            <p class="empty" style="padding:24px 16px">Chưa có bill nào đang giữ.</p>
+        }
+        else
+        {
+            <ul class="held-list">
+                @foreach (var h in Model.Held)
+                {
+                    <li>
+                        <span class="held-no">#@h.Number</span>
+                        <div class="grow">
+                            <div class="held-top">
+                                <b class="tabular">@Money.Format(h.Total)</b>
+                                <span class="held-actions">
+                                    <form method="post" asp-action="Restore" data-fetch="#bill">
+                                        <input type="hidden" name="id" value="@h.Bill.Id" />
+                                        <button class="btn btn-sm btn-primary" type="submit">Mở lại</button>
+                                    </form>
+                                    <form method="post" asp-action="DiscardHeld" data-fetch="#bill" data-confirm="Xoá bill đang giữ #@h.Number?">
+                                        <input type="hidden" name="id" value="@h.Bill.Id" />
+                                        <button class="btn btn-sm btn-icon" type="submit" aria-label="Xoá bill đang giữ">@Icons.Svg("x", 14)</button>
+                                    </form>
+                                </span>
+                            </div>
+                            <small>@h.ItemCount sản phẩm · giữ lúc @h.Bill.HeldAt.ToString("HH:mm")@(h.CustomerName is string n ? $" · {n}" : "")</small>
+                            <small class="held-names">@string.Join(", ", h.Names.Take(2))@(h.Names.Count > 2 ? $" và {h.Names.Count - 2} sản phẩm khác" : "")</small>
+                        </div>
+                    </li>
+                }
+            </ul>
+        }
+        <div class="modal-actions" style="padding-top:12px"><button class="btn" type="button" data-close-dialog>Đóng</button></div>
+    </dialog>
+
+    @if (p.Lines.Count > 0)
+    {
+        <dialog id="pay-dialog" class="modal pay-modal" aria-labelledby="pay-title">
+            <form method="post" asp-action="Checkout" data-payment data-total="@p.Total" data-blocked="@(canPay ? "false" : "true")">
+                <div class="modal-head">
+                    <h2 id="pay-title">Thanh toán</h2>
+                    <p class="muted">@p.ItemCount sản phẩm · @(c is null ? "Khách lẻ" : $"Thành viên {c.FullName}")@(Model.Code is string code && p.CodeError is null ? $" · Mã {code}" : "")</p>
+                </div>
+                <div class="modal-body">
+                    <div class="pay-due">
+                        <span><span>Khách cần thanh toán</span>@if (p.DiscountTotal > 0) { <small>Đã giảm @Money.Format(p.DiscountTotal)</small> }</span>
+                        <b class="tabular">@Money.Format(p.Total)</b>
+                    </div>
+                    <div class="pay-methods" role="radiogroup" aria-label="Hình thức thanh toán">
+                        @foreach (var (m, icon) in new[] { (PaymentMethod.Cash, "wallet"), (PaymentMethod.Card, "card"), (PaymentMethod.Ewallet, "phone"), (PaymentMethod.BankTransfer, "qr") })
+                        {
+                            <label class="pay-method">
+                                <input type="radio" name="paymentMethod" value="@m" checked="@(m == PaymentMethod.Cash)" />
+                                <span>@Icons.Svg(icon, 20) @Labels.Payment(m)</span>
+                            </label>
+                        }
+                    </div>
+                    <div data-panel="Cash" style="display:grid;gap:10px">
+                        <label class="field"><span>Tiền khách đưa</span>
+                            <input class="input input-xl tabular" name="cashReceived" inputmode="numeric" data-cash data-money placeholder="@Money.FormatNumber(p.Total)" autocomplete="off" />
+                        </label>
+                        <div class="quick-cash">
+                            <button type="button" class="btn" data-quick="@p.Total">Đủ tiền</button>
+                            @foreach (var amount in Model.QuickCash())
+                            {
+                                <button type="button" class="btn tabular" data-quick="@amount">@Money.FormatNumber(amount)</button>
+                            }
+                        </div>
+                        <div class="change" data-change-box><span data-change-label>Tiền thừa trả khách</span><b data-change class="tabular">—</b></div>
+                    </div>
+                    <div data-panel="Card" class="pay-panel" hidden>
+                        <span class="pay-icon">@Icons.Svg("card", 28)</span>
+                        <div>
+                            <p><b>Mời khách chạm hoặc cắm thẻ vào máy POS</b></p>
+                            <p class="muted">Nhập số tiền <b class="tabular" style="color:var(--fg)">@Money.Format(p.Total)</b> trên máy. Khi máy báo giao dịch thành công, bấm xác nhận bên dưới.</p>
+                        </div>
+                    </div>
+                    @foreach (var m in new[] { PaymentMethod.Ewallet, PaymentMethod.BankTransfer })
+                    {
+                        <div data-panel="@m" class="pay-panel" hidden>
+                            @FakeQr.Svg($"{m}:{Model.TransferRef}:{p.Total}", 148)
+                            <div style="display:grid;gap:8px;min-width:0">
+                                <p><b>@(m == PaymentMethod.Ewallet ? "Khách mở ví điện tử và quét mã để thanh toán" : "Khách mở ứng dụng ngân hàng và quét mã VietQR")</b></p>
+                                <dl class="pop-kv"><dt>Số tiền</dt><dd class="tabular">@Money.Format(p.Total)</dd><dt>Nội dung</dt><dd class="mono">@Model.TransferRef</dd></dl>
+                                <p class="cell-sub">Bấm “Đã nhận tiền” khi thấy thông báo nhận tiền thành công.</p>
+                            </div>
+                        </div>
+                    }
+                    @if (restricted.Count > 0)
+                    {
+                        <div class="flash flash-warn age-box">
+                            <span><b>Sản phẩm giới hạn độ tuổi:</b> @string.Join(", ", restricted)</span>
+                            <label class="check"><input type="checkbox" name="ageConfirmed" value="true" data-age /> Đã kiểm tra giấy tờ, khách từ đủ 18 tuổi</label>
+                        </div>
+                    }
+                    <p class="field-error" data-pay-error hidden></p>
+                </div>
+                <div class="modal-actions">
+                    <button class="btn btn-lg" type="button" data-close-dialog>Quay lại</button>
+                    <button class="btn btn-primary btn-lg" type="submit" data-pay
+                            data-label-cash="Xác nhận thanh toán" data-label-card="Đã quẹt thẻ thành công" data-label-qr="Đã nhận tiền">@Icons.Svg("check", 16) <span data-pay-label>Xác nhận thanh toán</span></button>
+                </div>
+            </form>
+        </dialog>
+    }
+</aside>

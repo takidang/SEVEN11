@@ -1,0 +1,285 @@
+@using SevenEleven.Core.Models
+@using SevenEleven.Core.Services
+@using SevenEleven.Web.Infrastructure
+@using SevenEleven.Web.Models.Shop
+@using SevenEleven.Web.Controllers
+@model SignInModel
+@{
+    var next = Model.Next;
+    var nextQ = "next=" + Uri.EscapeDataString(next);
+    var errors = Model.Errors;
+    var flow = Model.Flow;
+    var signUpFlow = flow?.Purpose != "reset";
+    (int Current, int Total)? progress = Model.Step switch
+    {
+        AuthStep.Form => Model.SignUp ? (1, 2) : null,
+        AuthStep.Forgot => (1, 3),
+        AuthStep.Otp => (2, signUpFlow ? 2 : 3),
+        _ => (3, 3),
+    };
+    var problemPhone = Fmt.Phone(Model.ProblemPhone);
+    var signUpWithPhone = $"{ShopUrls.SignIn}?tab=dang-ky&sdt={Uri.EscapeDataString(Model.ProblemPhone ?? "")}&{nextQ}";
+    var demoTier = Model.Demo is { } demo ? MembershipService.Info(demo.Tier).Label : null;
+    var bronze = MembershipService.Info(MemberTier.Bronze);
+    var diamond = MembershipService.Info(MemberTier.Diamond);
+    var topReward = StarService.Rewards[^1];
+    string Invalid(string field) => errors.Of(field) is null ? "false" : "true";
+}
+<div class="auth-wrap">
+    <section class="auth-card">
+        <div class="auth-brand">
+            <img src="~/img/logo-mark.png" alt="7-Eleven" width="40" height="40" />
+            <div class="min-w-0 flex-1">
+                <p class="strong small">Thành viên 7-Eleven</p>
+                <p class="xs muted">Đăng nhập bằng số điện thoại</p>
+            </div>
+            @if (progress is var (current, total))
+            {
+                <ol class="dots" aria-label="Bước @current/@total">
+                    @for (var i = 1; i <= total; i++)
+                    {
+                        <li class="@(i == current ? "now" : i < current ? "done" : null)"></li>
+                    }
+                </ol>
+            }
+        </div>
+
+        @if (Model.Step == AuthStep.Form)
+        {
+            <div class="seg" role="tablist" aria-label="Đăng nhập hoặc đăng ký">
+                <a role="tab" href="@(ShopUrls.SignIn)?@nextQ" aria-selected="@(Model.SignUp ? "false" : "true")" class="@(Model.SignUp ? null : "active")">Đăng nhập</a>
+                <a role="tab" href="@(ShopUrls.SignIn)?tab=dang-ky&@nextQ" aria-selected="@(Model.SignUp ? "true" : "false")" class="@(Model.SignUp ? "active" : null)">Đăng ký</a>
+            </div>
+
+            @if (!Model.SignUp)
+            {
+                <h1 class="auth-title">Chào mừng bạn quay lại</h1>
+                <p class="auth-sub">Đăng nhập bằng số điện thoại và mật khẩu đã đăng ký.</p>
+                <form method="post" action="/Account/Login" asp-antiforgery="true" class="auth-form" novalidate>
+                    <input type="hidden" name="next" value="@next" />
+                    <div class="field2">
+                        <label for="signin-phone">Số điện thoại</label>
+                        <div class="ig">
+                            @ShopIcons.Svg("phone", 16)
+                            <input id="signin-phone" name="phone" type="tel" inputmode="tel" autocomplete="tel-national" placeholder="Ví dụ: 0901 234 567"
+                                   value="@Model.Phone" aria-invalid="@(errors.Of("phone") is not null || Model.Problem == AuthProblem.NotRegistered ? "true" : "false")" />
+                        </div>
+                        @if (Model.Problem == AuthProblem.NotRegistered)
+                        {
+                            <p class="field-error" role="alert">Số @problemPhone chưa đăng ký thành viên. <a class="switch-link" href="@signUpWithPhone">Đăng ký với số này</a></p>
+                        }
+                        else
+                        {
+                            @Forms.Error(errors, "phone")
+                        }
+                    </div>
+                    <div class="field2">
+                        <label for="signin-password">Mật khẩu</label>
+                        <div class="ig">
+                            @ShopIcons.Svg("lock-keyhole", 16)
+                            <input id="signin-password" name="password" type="password" autocomplete="current-password" placeholder="Nhập mật khẩu"
+                                   aria-invalid="@(errors.Of("password") is not null || Model.Problem == AuthProblem.NoPassword ? "true" : "false")" />
+                            <button type="button" class="ig-btn" data-pw-toggle aria-pressed="false" aria-label="Hiện mật khẩu">@ShopIcons.Svg("eye", 16, "eye-on")@ShopIcons.Svg("eye-off", 16, "eye-off")</button>
+                        </div>
+                        @if (Model.Problem == AuthProblem.NoPassword)
+                        {
+                            <p class="field-error" role="alert">Tài khoản đăng ký tại cửa hàng nên chưa có mật khẩu. <a class="switch-link" href="@(ShopUrls.SignIn)?buoc=quen-mat-khau&sdt=@Uri.EscapeDataString(Model.ProblemPhone ?? "")&@nextQ">Tạo mật khẩu</a></p>
+                        }
+                        else
+                        {
+                            @Forms.Error(errors, "password")
+                        }
+                    </div>
+                    <div class="auth-forgot"><a class="link" href="@(ShopUrls.SignIn)?buoc=quen-mat-khau&@nextQ">Quên mật khẩu?</a></div>
+                    <button type="submit" class="btn btn-lg btn-block">Đăng nhập</button>
+                </form>
+
+                <div class="or"><span></span>hoặc<span></span></div>
+                <button type="button" class="demo-btn" data-demo-phone="@AccountController.DemoPhone" data-demo-password="@SevenEleven.Core.Data.SeedData.DemoPassword">
+                    <span class="demo-ic">@ShopIcons.Svg("user-round", 20)</span>
+                    <span class="min-w-0 flex-1">
+                        <span class="block strong small">Dùng tài khoản demo @AccountController.DemoPhone</span>
+                        <span class="block xs muted trunc">Mật khẩu @SevenEleven.Core.Data.SeedData.DemoPassword@(Model.Demo is { } d ? $" · {d.FullName} · hạng {demoTier}" : "")</span>
+                    </span>
+                    @ShopIcons.Svg("chevron-right", 16, "muted")
+                </button>
+            }
+            else
+            {
+                <h1 class="auth-title">Tạo tài khoản thành viên</h1>
+                <p class="auth-sub">Miễn phí. Thành viên mới bắt đầu từ hạng @bronze.Label, số điện thoại được xác minh bằng mã OTP.</p>
+                <form method="post" asp-controller="Account" asp-action="Register" class="auth-form" novalidate>
+                    <input type="hidden" name="next" value="@next" />
+                    <div class="field2">
+                        <label for="signup-name">Họ và tên</label>
+                        <input id="signup-name" class="input-lg" name="fullName" autocomplete="name" placeholder="Ví dụ: Nguyễn Minh Anh" value="@Model.FullName" aria-invalid="@Invalid("fullName")" />
+                        @Forms.Error(errors, "fullName")
+                    </div>
+                    <div class="field2">
+                        <label for="signup-phone">Số điện thoại</label>
+                        <div class="ig">
+                            @ShopIcons.Svg("phone", 16)
+                            <input id="signup-phone" name="phone" type="tel" inputmode="tel" autocomplete="tel-national" placeholder="Ví dụ: 0901 234 567" value="@Model.Phone"
+                                   aria-invalid="@(errors.Of("phone") is not null || Model.Problem == AuthProblem.AlreadyMember ? "true" : "false")" />
+                        </div>
+                        @if (Model.Problem == AuthProblem.AlreadyMember)
+                        {
+                            <p class="field-error" role="alert">Số @problemPhone đã là thành viên. <a class="switch-link" href="@(ShopUrls.SignIn)?sdt=@Uri.EscapeDataString(Model.ProblemPhone ?? "")&@nextQ">Đăng nhập</a></p>
+                        }
+                        else
+                        {
+                            @Forms.Error(errors, "phone")
+                        }
+                    </div>
+                    <div class="field2">
+                        <label for="signup-password">Mật khẩu</label>
+                        <div class="ig">
+                            @ShopIcons.Svg("lock-keyhole", 16)
+                            <input id="signup-password" name="password" type="password" autocomplete="new-password" placeholder="Tối thiểu @AccountController.PasswordMinLength ký tự" aria-invalid="@Invalid("password")" />
+                            <button type="button" class="ig-btn" data-pw-toggle aria-pressed="false" aria-label="Hiện mật khẩu">@ShopIcons.Svg("eye", 16, "eye-on")@ShopIcons.Svg("eye-off", 16, "eye-off")</button>
+                        </div>
+                        @if (errors.Of("password") is not null)
+                        {
+                            @Forms.Error(errors, "password")
+                        }
+                        else
+                        {
+                            <p class="field-hint">Dùng để đăng nhập các lần sau.</p>
+                        }
+                    </div>
+                    <div class="field2">
+                        <label for="signup-confirm">Nhập lại mật khẩu</label>
+                        <div class="ig">
+                            @ShopIcons.Svg("lock-keyhole", 16)
+                            <input id="signup-confirm" name="confirm" type="password" autocomplete="new-password" placeholder="Nhập lại mật khẩu" aria-invalid="@Invalid("confirm")" />
+                            <button type="button" class="ig-btn" data-pw-toggle aria-pressed="false" aria-label="Hiện mật khẩu">@ShopIcons.Svg("eye", 16, "eye-on")@ShopIcons.Svg("eye-off", 16, "eye-off")</button>
+                        </div>
+                        @Forms.Error(errors, "confirm")
+                    </div>
+                    <div class="gift-note">@ShopIcons.Svg("gift", 16) <span>@bronze.FreeDrink và voucher giảm @Fmt.Vnd(bronze.DrinkVoucher) mỗi ly đồ uống.</span></div>
+                    <button type="submit" class="btn btn-lg btn-block">Đăng ký</button>
+                </form>
+            }
+        }
+        else if (Model.Step == AuthStep.Forgot)
+        {
+            <a class="back-link" href="@(ShopUrls.SignIn)?@nextQ">@ShopIcons.Svg("arrow-left", 16) Quay lại đăng nhập</a>
+            <h1 class="auth-title tight">Quên mật khẩu</h1>
+            <p class="auth-sub">Nhập số điện thoại đã đăng ký. Sau khi xác minh chính chủ bằng mã OTP, bạn đặt mật khẩu mới.</p>
+            <form method="post" asp-controller="Account" asp-action="Forgot" class="auth-form" novalidate>
+                <input type="hidden" name="next" value="@next" />
+                <div class="field2">
+                    <label for="forgot-phone">Số điện thoại</label>
+                    <div class="ig">
+                        @ShopIcons.Svg("phone", 16)
+                        <input id="forgot-phone" name="phone" type="tel" inputmode="tel" autocomplete="tel-national" placeholder="Ví dụ: 0901 234 567" value="@Model.Phone" autofocus
+                               aria-invalid="@(errors.Of("phone") is not null || Model.Problem == AuthProblem.Unknown ? "true" : "false")" />
+                    </div>
+                    @if (Model.Problem == AuthProblem.Unknown)
+                    {
+                        <p class="field-error" role="alert">Số @problemPhone chưa đăng ký thành viên. <a class="switch-link" href="@signUpWithPhone">Đăng ký với số này</a></p>
+                    }
+                    else
+                    {
+                        @Forms.Error(errors, "phone")
+                    }
+                </div>
+                <button type="submit" class="btn btn-lg btn-block">Gửi mã OTP</button>
+            </form>
+        }
+        else if (Model.Step == AuthStep.Otp && flow is not null)
+        {
+            var back = signUpFlow ? $"{ShopUrls.SignIn}?tab=dang-ky&{nextQ}" : $"{ShopUrls.SignIn}?buoc=quen-mat-khau&sdt={Uri.EscapeDataString(flow.Phone)}&{nextQ}";
+            var blocked = Model.OtpBlocked;
+            <a class="back-link" href="@back">@ShopIcons.Svg("arrow-left", 16) Đổi số điện thoại</a>
+            <h1 class="auth-title tight">Xác minh số điện thoại</h1>
+            <p class="auth-sub">Nhập mã @OtpService.Length số vừa gửi qua SMS tới <b class="nowrap">@Fmt.Phone(flow.Phone)</b> để xác nhận bạn là chủ số điện thoại này.</p>
+            <form method="post" asp-controller="Account" asp-action="VerifyOtp" class="auth-form" data-otp data-blocked="@(blocked ? "true" : "false")" novalidate>
+                <input type="hidden" name="next" value="@next" />
+                <div class="otp-boxes" role="group" aria-label="Mã OTP">
+                    @for (var i = 0; i < OtpService.Length; i++)
+                    {
+                        <input name="otp" data-otp-box inputmode="numeric" pattern="[0-9]*" autocomplete="@(i == 0 ? "one-time-code" : "off")"
+                               aria-label="Chữ số thứ @(i + 1)" aria-invalid="@(Model.OtpError is null ? "false" : "true")" disabled="@blocked" />
+                    }
+                </div>
+                @if (Model.OtpError is string otpError)
+                {
+                    <p role="alert" class="otp-error">@otpError</p>
+                }
+                <p class="otp-note">
+                    @ShopIcons.Svg("message-square-text", 14) Bản demo không gửi SMS thật, mã hiện trong thông báo tin nhắn.
+                    <a class="link strong" href="@(ShopUrls.SignIn)?buoc=xac-minh&sms=1&@nextQ" data-sms="@flow.DevCode" data-phone="@Fmt.Phone(flow.Phone)">Xem lại tin nhắn</a>
+                </p>
+                <button type="submit" class="btn btn-lg btn-block" data-otp-submit disabled="@blocked">@(signUpFlow ? "Xác nhận và tạo tài khoản" : "Xác nhận")</button>
+            </form>
+            <div class="otp-resend">
+                @(blocked ? "Cần mã mới?" : "Chưa nhận được mã?")
+                @if (!blocked && Model.ResendLeft > 0)
+                {
+                    <span data-left="@Model.ResendLeft" data-seconds-text data-swap="resend-form">Gửi lại sau <b class="tabular" data-clock>@Model.ResendLeft giây</b></span>
+                }
+                <span id="resend-form" hidden="@(!blocked && Model.ResendLeft > 0)">
+                    <form method="post" asp-controller="Account" asp-action="ResendOtp" class="inline-form">
+                        <input type="hidden" name="next" value="@next" />
+                        <button type="submit" class="link strong">Gửi lại mã</button>
+                    </form>
+                </span>
+            </div>
+        }
+        else if (Model.Step == AuthStep.NewPassword && flow is not null)
+        {
+            <a class="back-link" href="@(ShopUrls.SignIn)?@nextQ">@ShopIcons.Svg("arrow-left", 16) Quay lại đăng nhập</a>
+            <h1 class="auth-title tight">Đặt mật khẩu mới</h1>
+            <p class="auth-sub">Đã xác minh số <b class="nowrap">@Fmt.Phone(flow.Phone)</b>. Tạo mật khẩu mới để đăng nhập các lần sau.</p>
+            <form method="post" asp-controller="Account" asp-action="NewPassword" class="auth-form" novalidate>
+                <input type="hidden" name="next" value="@next" />
+                <div class="field2">
+                    <label for="reset-password">Mật khẩu mới</label>
+                    <div class="ig">
+                        @ShopIcons.Svg("lock-keyhole", 16)
+                        <input id="reset-password" name="password" type="password" autocomplete="new-password" placeholder="Tối thiểu @AccountController.PasswordMinLength ký tự" autofocus aria-invalid="@Invalid("password")" />
+                        <button type="button" class="ig-btn" data-pw-toggle aria-pressed="false" aria-label="Hiện mật khẩu">@ShopIcons.Svg("eye", 16, "eye-on")@ShopIcons.Svg("eye-off", 16, "eye-off")</button>
+                    </div>
+                    @Forms.Error(errors, "password")
+                </div>
+                <div class="field2">
+                    <label for="reset-confirm">Nhập lại mật khẩu</label>
+                    <div class="ig">
+                        @ShopIcons.Svg("lock-keyhole", 16)
+                        <input id="reset-confirm" name="confirm" type="password" autocomplete="new-password" placeholder="Nhập lại mật khẩu mới" aria-invalid="@Invalid("confirm")" />
+                        <button type="button" class="ig-btn" data-pw-toggle aria-pressed="false" aria-label="Hiện mật khẩu">@ShopIcons.Svg("eye", 16, "eye-on")@ShopIcons.Svg("eye-off", 16, "eye-off")</button>
+                    </div>
+                    @Forms.Error(errors, "confirm")
+                </div>
+                <button type="submit" class="btn btn-lg btn-block">Lưu mật khẩu và đăng nhập</button>
+            </form>
+        }
+
+        <div class="auth-perks-wrap"><ul class="auth-perks">
+            <li>@ShopIcons.Svg("bike", 20, "text-fresh") Giao nhanh 24 phút</li>
+            <li>@ShopIcons.Svg("package-check", 20, "text-brand") Theo dõi đơn hàng</li>
+            <li>@ShopIcons.Svg("ticket-percent", 20, "text-orange") Voucher thành viên</li>
+        </ul></div>
+    </section>
+
+    <aside class="benefits">
+        <span class="benefits-stripe orange" aria-hidden="true"></span>
+        <span class="benefits-stripe red" aria-hidden="true"></span>
+        <div class="benefits-top">
+            <span class="benefits-logo"><img src="~/img/logo-wordmark.png" alt="7-Eleven" /></span>
+            <h2>Mua sắm – nâng hạng, ưu đãi mỗi ngày</h2>
+            <p>Đăng nhập để nhận ưu đãi thành viên, tích sao vàng đổi voucher và theo dõi đơn hàng.</p>
+        </div>
+        <ul class="benefits-list">
+            <li><span>@ShopIcons.Svg("cup-soda", 18)</span>Voucher đồ uống mỗi tháng, giảm đến @Fmt.Vnd(diamond.DrinkVoucher) mỗi ly</li>
+            <li><span>@ShopIcons.Svg("star", 18)</span>Cứ @Fmt.Vnd(StarService.StarSpend) chi tiêu được 1 sao vàng, đổi voucher tới @Fmt.Vnd(topReward.Value)</li>
+            <li><span>@ShopIcons.Svg("cake", 18)</span>Tháng sinh nhật giảm đến @Math.Round(diamond.BirthdayDrinkDiscount * 100)% đồ uống</li>
+            <li><span>@ShopIcons.Svg("bike", 18)</span>Giao nhanh 24 phút, lưu địa chỉ và theo dõi đơn theo thời gian thực</li>
+        </ul>
+        <div class="benefits-foot">
+            <a href="@ShopUrls.Membership">Xem chương trình thành viên @ShopIcons.Svg("arrow-right", 16)</a>
+            <p>Có 4 hạng Đồng, Bạc, Vàng, Kim cương. Chi tiêu tích luỹ đủ mốc là lên hạng ngay.</p>
+        </div>
+    </aside>
+</div>

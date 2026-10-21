@@ -1,0 +1,51 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <!--
+    Lõi tính tiền viết bằng C++ (../native/sevenpricing). Trên macOS/Linux, build dự án này sẽ tự biên
+    dịch thư viện bằng clang++ (hoặc g++). Không có trình biên dịch thì vẫn build được và ứng dụng tự
+    dùng bản C#. Trên Windows dựng bằng CMake (xem native/sevenpricing/CMakeLists.txt) rồi chép
+    sevenpricing.dll vào native/build.
+  -->
+  <PropertyGroup>
+    <NativeDir>$(MSBuildThisFileDirectory)../native/</NativeDir>
+    <NativeLib Condition="$([MSBuild]::IsOSPlatform('OSX'))">libsevenpricing.dylib</NativeLib>
+    <NativeLib Condition="$([MSBuild]::IsOSPlatform('Linux'))">libsevenpricing.so</NativeLib>
+    <NativeLib Condition="$([MSBuild]::IsOSPlatform('Windows'))">sevenpricing.dll</NativeLib>
+    <NativeCompiler Condition="'$(NativeCompiler)' == '' And $([MSBuild]::IsOSPlatform('OSX'))">clang++</NativeCompiler>
+    <NativeCompiler Condition="'$(NativeCompiler)' == '' And $([MSBuild]::IsOSPlatform('Linux'))">g++</NativeCompiler>
+  </PropertyGroup>
+
+  <Target Name="BuildNativePricing" BeforeTargets="BeforeBuild" Condition="'$(NativeCompiler)' != ''"
+          Inputs="$(NativeDir)sevenpricing/sevenpricing.cpp;$(NativeDir)sevenpricing/sevenpricing.h"
+          Outputs="$(NativeDir)build/$(NativeLib)">
+    <MakeDir Directories="$(NativeDir)build" />
+    <Exec Command="$(NativeCompiler) -std=c++17 -O2 -Wall -Wextra -shared -fPIC -fvisibility=hidden -o &quot;$(NativeDir)build/$(NativeLib)&quot; &quot;$(NativeDir)sevenpricing/sevenpricing.cpp&quot;"
+          ContinueOnError="true" />
+    <!-- Lần build đầu thư viện chưa có lúc đọc dự án, nên thêm vào danh sách chép ngay sau khi biên dịch. -->
+    <ItemGroup Condition="Exists('$(NativeDir)build/$(NativeLib)') And '@(NativePricingLib)' == ''">
+      <None Include="$(NativeDir)build/$(NativeLib)" Link="$(NativeLib)" CopyToOutputDirectory="PreserveNewest" Visible="false" />
+    </ItemGroup>
+  </Target>
+
+  <ItemGroup>
+    <NativePricingLib Include="$(NativeDir)build/$(NativeLib)" Condition="Exists('$(NativeDir)build/$(NativeLib)')" />
+    <None Include="@(NativePricingLib)" Link="$(NativeLib)" CopyToOutputDirectory="PreserveNewest" Visible="false" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.11">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="8.0.11" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="8.0.11" />
+  </ItemGroup>
+
+</Project>
