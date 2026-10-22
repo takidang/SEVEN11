@@ -4,7 +4,7 @@ Tài liệu kiểm thử cho các chức năng được giao từ ngày 21/10/20
 
 | File | Nội dung |
 | --- | --- |
-| `TestCase_SEVEN11.xlsx` | Mỗi chức năng một sheet; sheet **Tổng hợp** tự đếm Pass / Fail / Chưa test. Tester điền các cột nền vàng. |
+| `TestCase_SEVEN11.xlsx` | Mỗi chức năng một sheet; sheet **Tổng hợp** tự đếm Pass / Fail / Chưa test; sheet **Hồi quy** ghi mỗi lần chạy lại toàn bộ test. Tester điền các cột nền vàng. |
 | `TestCase_1_DoiMatKhau.docx` | Đổi mật khẩu (`feat/change-password`): 16 test case, kèm ảnh chụp màn hình |
 | `TestCase_2_KhoaDangNhap.docx` | Khoá đăng nhập sau 5 lần sai (`feat/login-lockout`): 11 test case, kèm ảnh chụp màn hình |
 
