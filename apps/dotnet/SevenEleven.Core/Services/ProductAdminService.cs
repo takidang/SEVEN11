@@ -114,7 +114,8 @@ public partial class ProductAdminService(AppDbContext db)
             else if (shelf < 1) errors.Set(nameof(input.ShelfLifeDays), "Hạn dùng tối thiểu 1 ngày");
         }
         var image = input.Image?.Trim() ?? "";
-        if (image.Length > 0 && !UrlPattern().IsMatch(image)) errors.Set(nameof(input.Image), "Đường dẫn ảnh phải bắt đầu bằng http:// hoặc https://");
+        if (image.Length > 0 && !UrlPattern().IsMatch(image) && !ProductImages.IsUploaded(image))
+            errors.Set(nameof(input.Image), "Đường dẫn ảnh phải bắt đầu bằng http:// hoặc https://");
 
         if (errors.Count == 0)
         {

@@ -14,3 +14,6 @@ native/build/
 
 # e2e (npm i -D playwright)
 e2e/node_modules/
+
+# Ảnh sản phẩm do người dùng tải lên khi chạy thử
+SevenEleven.Web/wwwroot/uploads/
