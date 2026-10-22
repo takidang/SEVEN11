@@ -208,6 +208,25 @@
     if (margin) updateMargin();
     var imgInput = form.querySelector("[data-image-input]");
     var img = form.querySelector("[data-image-preview]");
+    // Chọn file ảnh: báo ngay nếu quá 2 MB hoặc sai loại, còn hợp lệ thì xem trước luôn (máy chủ vẫn kiểm tra lại).
+    var file = form.querySelector("[data-image-file]");
+    var fileName = form.querySelector("[data-image-file-name]");
+    var fileError = form.querySelector("[data-image-error]");
+    if (file && img) file.addEventListener("change", function () {
+      var f = file.files && file.files[0];
+      var problem = "";
+      if (f && !/\.(jpe?g|png|webp)$/i.test(f.name)) problem = "Chỉ nhận ảnh JPG, PNG hoặc WEBP";
+      else if (f && f.size > Number(file.getAttribute("data-max-bytes"))) problem = "Ảnh tối đa 2 MB (file này " + (f.size / 1048576).toFixed(1).replace(".", ",").replace(/,0$/, "") + " MB)";
+      fileError.textContent = problem;
+      fileError.hidden = !problem;
+      // Đã chọn file thì ảnh từ máy được dùng: khoá ô đường dẫn để khỏi nhầm (vẫn gửi đi, phòng khi file bị máy chủ từ chối).
+      if (imgInput) { imgInput.readOnly = !problem && !!f; imgInput.classList.toggle("is-replaced", imgInput.readOnly); }
+      if (problem || !f) { file.value = ""; fileName.textContent = "Chưa chọn file"; return; }
+      fileName.textContent = f.name + " · " + Math.max(1, Math.round(f.size / 1024)) + " KB — sẽ thay cho đường dẫn bên dưới";
+      img.hidden = false;
+      delete img.dataset.fallback;
+      img.src = URL.createObjectURL(f);
+    });
     if (imgInput && img) imgInput.addEventListener("change", function () {
       var url = imgInput.value.trim();
       img.hidden = !url;

@@ -597,3 +597,11 @@ dialog.pay-modal { width: min(560px, calc(100vw - 24px)); }
   .pos-page .admin-foot { padding-bottom: 92px; }
   #bill-top { scroll-margin-top: 12px; }
 }
+
+/* Ảnh sản phẩm: xem trước + chọn file + dán đường dẫn */
+.image-upload { display: flex; gap: 12px; align-items: flex-start; }
+.image-upload-body { flex: 1; min-width: 0; display: grid; gap: 6px; justify-items: start; }
+.image-upload-body input[data-image-input] { width: 100%; }
+.image-pick { position: relative; overflow: hidden; cursor: pointer; }
+.image-pick input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.image-upload-body input.is-replaced { color: var(--muted); background: var(--surface); text-decoration: line-through; }

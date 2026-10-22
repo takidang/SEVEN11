@@ -46,7 +46,7 @@
 }
 else
 {
-    <form method="post" asp-action="Save" class="panel form" style="max-width:920px" data-product-form>
+    <form method="post" asp-action="Save" enctype="multipart/form-data" class="panel form" style="max-width:920px" data-product-form>
         <input type="hidden" name="Id" value="@i.Id" />
         @if (e.Count > 0)
         {
@@ -124,13 +124,21 @@ else
                     @if (Model.Product is null) { <button type="button" class="btn btn-sm" data-ean13="#barcode">Tạo mã</button> }</span>
                     @Forms.Error(e, "Barcode")
                 </label>
-                <label class="field full"><span>Đường dẫn ảnh <small class="help">Ảnh vuông, nền trắng. Xem trước hiển thị bên trái.</small></span>
-                    <span style="display:flex;gap:10px;align-items:center">
+                <div class="field full"><span>Ảnh sản phẩm <small class="help">Ảnh vuông, nền trắng. JPG, PNG hoặc WEBP, tối đa 2 MB.</small></span>
+                    <div class="image-upload">
                         <img class="preview-img" src="@(string.IsNullOrWhiteSpace(i.Image) ? null : i.Image)" alt="" data-image-preview hidden="@string.IsNullOrWhiteSpace(i.Image)" />
-                        <input name="Image" value="@i.Image" placeholder="https://…" class="@Forms.Invalid(e, "Image")" style="flex:1" data-image-input />
-                    </span>
+                        <div class="image-upload-body">
+                            <label class="btn btn-sm image-pick">@Icons.Svg("download", 16) Chọn ảnh từ máy
+                                <input type="file" name="imageFile" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"
+                                       data-image-file data-max-bytes="@ProductImages.MaxBytes" />
+                            </label>
+                            <small class="muted" data-image-file-name>@(ProductImages.IsUploaded(i.Image) ? "Đang dùng ảnh đã tải lên" : "Chưa chọn file")</small>
+                            <input name="Image" value="@i.Image" placeholder="hoặc dán đường dẫn https://…" class="@Forms.Invalid(e, "Image")" data-image-input aria-label="Đường dẫn ảnh" />
+                        </div>
+                    </div>
+                    <span class="field-error" role="alert" data-image-error hidden></span>
                     @Forms.Error(e, "Image")
-                </label>
+                </div>
             </div>
         </div>
 

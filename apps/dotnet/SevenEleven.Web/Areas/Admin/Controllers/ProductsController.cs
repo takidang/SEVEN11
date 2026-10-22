@@ -7,7 +7,7 @@ using SevenEleven.Core.Services;
 namespace SevenEleven.Web.Areas.Admin.Controllers;
 
 /// <summary>Sản phẩm: danh mục dùng chung toàn chuỗi. Quản trị thêm/sửa/ngừng bán; quản lý chỉ xem.</summary>
-public class ProductsController(AppDbContext db, ProductAdminService products) : AdminController(db)
+public class ProductsController(AppDbContext db, ProductAdminService products, IWebHostEnvironment env) : AdminController(db)
 {
     private const int PageSize = 20;
 
@@ -87,15 +87,34 @@ public class ProductsController(AppDbContext db, ProductAdminService products) :
         return await FormAsync(input, product, null);
     }
 
-    [HttpPost, ValidateAntiForgeryToken]
-    public async Task<IActionResult> Save(ProductInput input)
+    /// <summary>
+    /// Lưu sản phẩm. Có chọn file ảnh thì ảnh tải lên thay cho đường dẫn dán vào; ảnh cũ do hệ thống lưu
+    /// bị xoá khi đổi ảnh thành công. Giới hạn yêu cầu 10 MB để file lớn hơn 2 MB vẫn tới được đây và
+    /// nhận câu báo lỗi dễ hiểu thay vì trang lỗi 413.
+    /// </summary>
+    [HttpPost, ValidateAntiForgeryToken, RequestSizeLimit(10_000_000), RequestFormLimits(MultipartBodyLengthLimit = 10_000_000)]
+    public async Task<IActionResult> Save(ProductInput input, IFormFile? imageFile)
     {
+        var previous = input.Id is null ? null
+            : await Db.Products.AsNoTracking().Where(p => p.Id == input.Id).Select(p => p.Image).FirstOrDefaultAsync();
+        if (imageFile is { Length: > 0 })
+        {
+            var (path, error) = await StoreImageAsync(imageFile);
+            if (error is not null)
+            {
+                var current = input.Id is null ? null : await Db.Products.Include(p => p.Category).FirstOrDefaultAsync(p => p.Id == input.Id);
+                return await FormAsync(input, current, new FormErrors { ["Image"] = error });
+            }
+            input.Image = path;
+        }
+
         var result = await products.SaveAsync(input, new Actor(Staff.Id, Staff.Role, Staff.StoreId));
         if (!result.Ok)
         {
             var product = input.Id is null ? null : await Db.Products.Include(p => p.Category).FirstOrDefaultAsync(p => p.Id == input.Id);
             return await FormAsync(input, product, result.Errors);
         }
+        if (ProductImages.IsUploaded(previous) && previous != result.Value!.Image) DeleteImage(previous!);
         Toast(input.Id is null
             ? $"Đã thêm sản phẩm mới: {result.Value!.Name} · {result.Value.Sku} — tồn kho ban đầu 0 ở mọi cửa hàng"
             : $"Đã lưu thay đổi sản phẩm: {result.Value!.Name}");
@@ -109,6 +128,33 @@ public class ProductsController(AppDbContext db, ProductAdminService products) :
         if (product is null) return NotFound();
         Toast($"{(active ? "Đã mở bán sản phẩm" : "Đã ngừng bán sản phẩm")}: {product.Name}");
         return Back(returnUrl, "/Admin/Products");
+    }
+
+    /// <summary>Kiểm tra rồi lưu ảnh với tên ngẫu nhiên (không dùng tên file người dùng gửi lên).</summary>
+    private async Task<(string? Path, string? Error)> StoreImageAsync(IFormFile file)
+    {
+        var head = new byte[12];
+        await using (var stream = file.OpenReadStream())
+        {
+            var read = 0;
+            while (read < head.Length && await stream.ReadAsync(head.AsMemory(read)) is var n and > 0) read += n;
+            var check = ProductImages.Validate(file.FileName, file.Length, head.AsSpan(0, read));
+            if (!check.Ok) return (null, check.Error);
+
+            var folder = Path.Combine(env.WebRootPath, "uploads", "products");
+            Directory.CreateDirectory(folder);
+            var name = $"{Guid.NewGuid():N}{check.Extension}";
+            stream.Position = 0;
+            await using var output = System.IO.File.Create(Path.Combine(folder, name));
+            await stream.CopyToAsync(output);
+            return (ProductImages.Folder + name, null);
+        }
+    }
+
+    private void DeleteImage(string path)
+    {
+        var file = Path.Combine(env.WebRootPath, "uploads", "products", Path.GetFileName(path));
+        if (System.IO.File.Exists(file)) System.IO.File.Delete(file);
     }
 
     private async Task<IActionResult> FormAsync(ProductInput input, Product? product, FormErrors? errors)

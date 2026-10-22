@@ -83,7 +83,8 @@ Chú thích: ✅ xong · 🚧 đang làm · ⏳ chưa làm
   mật khẩu đúng cũng bị từ chối; quên mật khẩu qua OTP hoặc quản trị đặt lại thì mở khoá. `feat/login-lockout`
 - ✅ G3. Lịch sử đổi giá bán, giá vốn (ai đổi, lúc nào), xem trong trang sửa sản phẩm; sản phẩm mới ghi giá ban
   đầu; quản lý chỉ xem cũng thấy lịch sử. `feat/price-history`
-- ⏳ G4. Tải ảnh sản phẩm lên (jpg, png, webp tối đa 2 MB) thay vì dán link. `feat/product-image-upload`
+- ✅ G4. Tải ảnh sản phẩm lên (jpg, png, webp tối đa 2 MB) thay vì dán link; kiểm tra loại ảnh theo nội dung file,
+  ảnh cũ đã tải lên bị dọn khi đổi ảnh; vẫn dán link được. `feat/product-image-upload`
 - ⏳ G5. Phiếu nhập nhận thiếu, nhận nhiều đợt, có nút kết thúc phiếu. `feat/partial-receiving`
 - ⏳ G6. Chuyển kho giữa các cửa hàng: bên gửi trừ kho, bên nhận xác nhận thì cộng kho, giữ hạn dùng của lô. `feat/stock-transfer`
 - ⏳ G7. Trả hàng cho đơn đã hoàn thành trong 7 ngày: nhập lại kho hoặc xuất huỷ, hoàn tiền, trừ lại sao và
