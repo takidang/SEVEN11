@@ -19,7 +19,7 @@
     var (sampleStars, sampleCarry) = StarService.Earn(0, 100_000);
     (string Icon, string Label, string Value)[] highlights =
     [
-        ("cup-soda", "Voucher đồ uống đến", $"-{Fmt.Num(highest.DrinkVoucher)} ₫/ly"),
+        ("cup-soda", "Voucher đồ uống đến", $"−{Fmt.Num(highest.DrinkVoucher)} ₫/ly"),
         ("cake", "Tháng sinh nhật giảm đến", $"{Math.Round(bestBirthday * 100)}%"),
         ("gift", "Quà khách mới", "3 ly miễn phí"),
         ("star", "Tích sao vàng", $"{Fmt.Compact(StarService.StarSpend)} = 1 sao"),
@@ -45,27 +45,30 @@
     ];
 }
 <div class="stack-10">
+    @* Bốn tấm thẻ thành viên xoè ra như trên mặt quầy; quyền lợi in như một mẩu hoá đơn. *@
     <header class="mhero">
-        <div class="mhero-bg" aria-hidden="true"></div>
-        <div class="mhero-ring" aria-hidden="true"></div>
-        <p class="mhero-chip">@tiers.Count hạng thành viên · Tích sao vàng</p>
-        <h1 class="mhero-title headline">Mua sắm – nâng hạng</h1>
-        <p class="mhero-text">
-            Chi tiêu đến đâu, lên hạng đến đó: @string.Join(", ", tiers.Select(t => t.Label)) với voucher đồ uống mỗi tháng, ưu đãi tháng sinh nhật và
-            ly nước miễn phí. Cứ @Fmt.Vnd(StarService.StarSpend) chi tiêu lại được 1 sao vàng để đổi voucher.
-        </p>
-        <ul class="mhero-tiles">
-            @foreach (var (icon, label, value) in highlights)
+        <div class="mhero-copy">
+            <h1 class="mhero-title"><span>Mua sắm,</span> <span>nâng hạng</span></h1>
+            <p class="mhero-text">
+                Chi tiêu đến đâu, lên hạng đến đó: @string.Join(", ", tiers.Select(t => t.Label)) với voucher đồ uống mỗi tháng, ưu đãi tháng sinh nhật và
+                ly nước miễn phí. Cứ @Fmt.Vnd(StarService.StarSpend) chi tiêu lại được 1 sao vàng để đổi voucher.
+            </p>
+            <div class="receipt-wrap mhero-facts"><dl class="receipt">
+                @foreach (var (_, label, value) in highlights)
+                {
+                    <div><dt>@label</dt><dd>@value</dd></div>
+                }
+            </dl></div>
+        </div>
+        <div class="mhero-cards" aria-hidden="true">
+            @for (var i = 0; i < tiers.Count; i++)
             {
-                <li>
-                    <span class="mhero-ic">@ShopIcons.Svg(icon, 20)</span>
-                    <span class="min-w-0">
-                        <span class="block small muted">@label</span>
-                        <span class="block mhero-value headline">@value</span>
-                    </span>
-                </li>
+                var card = new TierCardModel(MembershipService.Order[i], Note: tiers[i].MinSpend > 0 ? $"Tích luỹ từ {Fmt.Vnd(tiers[i].MinSpend)}" : "Ngay khi đăng ký");
+                <div class="mhero-card" style="--k:@i">
+                    <partial name="_TierCard" model="card" />
+                </div>
             }
-        </ul>
+        </div>
     </header>
 
     @if (c is null)

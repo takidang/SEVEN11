@@ -24,17 +24,20 @@
     };
 }
 <div class="stack-10">
+    @* Như kệ ở trang chủ: tiêu đề trên vách, bốn mục ưu đãi là bốn nhãn kẹp ở mép kệ. *@
     <header class="phero">
-        <div class="phero-bg" aria-hidden="true"></div>
-        <div class="phero-glow" aria-hidden="true"></div>
-        <p class="phero-date">@Fmt.LongDate(now)</p>
-        <h1 class="phero-title headline">Flash sale &amp; ưu đãi</h1>
-        <p class="phero-text">Giá sốc theo khung giờ mỗi ngày, mã giảm giá cho đơn online, quà tặng khi mua kèm và voucher đồ uống cho thành viên.</p>
-        <nav aria-label="Các mục ưu đãi">
-            <ul class="phero-nav">
+        <div class="phero-light" aria-hidden="true"></div>
+        <div class="phero-board" aria-hidden="true"></div>
+        <div class="phero-copy">
+            <p class="phero-date">@ShopIcons.Svg("calendar-clock", 16) @Fmt.LongDate(now)</p>
+            <h1 class="phero-title"><span>Flash sale</span> <span class="ln-sale">&amp; ưu đãi</span></h1>
+            <p class="phero-text">Giá sốc theo khung giờ mỗi ngày, mã giảm giá cho đơn online, quà tặng khi mua kèm và voucher đồ uống cho thành viên.</p>
+        </div>
+        <nav class="phero-nav-wrap" aria-label="Các mục ưu đãi">
+            <ul class="phero-nav" role="list">
                 @foreach (var (id, label, icon) in sections)
                 {
-                    <li><a href="#@id">@ShopIcons.Svg(icon, 16) @label</a></li>
+                    <li><a href="#@id" class="ptag ptag-@id">@ShopIcons.Svg(icon, 16) @label</a></li>
                 }
             </ul>
         </nav>

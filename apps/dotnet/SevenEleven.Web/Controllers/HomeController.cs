@@ -17,18 +17,15 @@ public class HomeController(AppDbContext db, ShopContext shop, CustomerAdminServ
     /// <summary>"Gợi ý cho bạn" — lối tắt vào danh mục, ảnh là các sản phẩm có ảnh tách nền sạch.</summary>
     private static readonly Collection[] Collections =
     [
-        new("Trà sữa & cà phê", ShopUrls.Category("tra-sua"), "tint-orange", ["p0014", "p0010", "p0021"]),
-        new("Món ngon nhà Bảy", ShopUrls.Category("mon-ngon"), "tint-brand", ["p0047", "p0031", "p0044"]),
-        new("Bánh mì & toastie", ShopUrls.Category("cac-loai-banh"), "tint-sale", ["p0079", "p0070", "p0086"]),
-        new("Snack ăn xế", ShopUrls.Category("do-an-vat"), "tint-red", ["p0114", "p0122", "p0113"]),
-        new("Bia lạnh 24/7", ShopUrls.Category("do-uong-co-con", "bia"), "tint-info", ["p0224", "p0221", "p0223"], true),
-        new("Sữa & sữa chua", ShopUrls.Category("san-pham-tu-sua"), "tint-fresh", ["p0146", "p0161", "p0162"], true),
-        new("Nước giải khát", ShopUrls.Category("do-uong-dong-chai"), "tint-orange", ["p0187", "p0182", "p0197"], true),
-        new("Chăm sóc cá nhân", ShopUrls.Category("cham-soc-ca-nhan"), "tint-surface", ["p0295", "p0301", "p0286"], true),
+        new("Trà sữa & cà phê", ShopUrls.Category("tra-sua"), ["p0014", "p0010", "p0021"]),
+        new("Món ngon nhà Bảy", ShopUrls.Category("mon-ngon"), ["p0047", "p0031", "p0044"]),
+        new("Bánh mì & toastie", ShopUrls.Category("cac-loai-banh"), ["p0079", "p0070", "p0086"]),
+        new("Snack ăn xế", ShopUrls.Category("do-an-vat"), ["p0114", "p0122", "p0113"]),
+        new("Bia lạnh 24/7", ShopUrls.Category("do-uong-co-con", "bia"), ["p0224", "p0221", "p0223"], true),
+        new("Sữa & sữa chua", ShopUrls.Category("san-pham-tu-sua"), ["p0146", "p0161", "p0162"], true),
+        new("Nước giải khát", ShopUrls.Category("do-uong-dong-chai"), ["p0187", "p0182", "p0197"], true),
+        new("Chăm sóc cá nhân", ShopUrls.Category("cham-soc-ca-nhan"), ["p0295", "p0301", "p0286"], true),
     ];
-
-    /// <summary>Ly đồ uống đặt trên bậc Kim cương của banner thành viên.</summary>
-    private static readonly string[] MemberPhotoIds = ["p0014", "p0010"];
 
     public IActionResult Index(string? khung)
     {
@@ -48,9 +45,7 @@ public class HomeController(AppDbContext db, ShopContext shop, CustomerAdminServ
             Slots = slots,
             Featured = featured,
             Selected = selected,
-            BannerPhotos = PickArtPhotos(pool, categories),
-            MemberCup = MemberPhotoIds.Select(byId.GetValueOrDefault).FirstOrDefault(p => p is not null)
-                        ?? products.FirstOrDefault(p => p.CategoryId == "tra-sua"),
+            Shelf = PickShelf(featured, pool),
             Collections = Collections.Select(c => (c, c.PhotoIds.Select(byId.GetValueOrDefault).OfType<Product>().ToList())).ToList(),
             SlotProducts = slots.ToDictionary(s => s.Promotion.Id, s => ShopPromos.PromotionProducts(s.Promotion, products)),
             NewProducts = products.Where(p => p.IsNew).OrderByDescending(p => p.CreatedAt).Take(16).ToList(),
@@ -66,18 +61,18 @@ public class HomeController(AppDbContext db, ShopContext shop, CustomerAdminServ
     }
 
     /// <summary>
-    /// Ảnh cho banner về một nhóm sản phẩm: ảnh tách nền sạch trước, rồi biểu tượng danh mục, cuối cùng
-    /// là ảnh có khung (phóng to để khung nằm ngoài vòng tròn) — giống pickArtPhotos của bản Next.js.
+    /// Món bày trên kệ đầu trang: chỉ món có ảnh tách nền sạch, vì ảnh có khung đỏ hay tem "Giảm 50%" không
+    /// đứng trên kệ được. Khung chỉ có một món như vậy thì bày ba mặt hàng của món đó sau một nhãn giá.
     /// </summary>
-    private static List<ArtPhoto> PickArtPhotos(List<Product> pool, IReadOnlyList<Category> categories, int count = 3)
+    private static List<ShelfItem> PickShelf(FlashSlot? slot, List<Product> pool)
     {
-        var clean = pool.Where(p => ShopImages.CleanPhotoIds.Contains(p.Id)).Select(p => new ArtPhoto(p.Id, p.Image, p.Name, "z118"));
-        var icons = pool.Select(p => p.CategoryId).Distinct()
-            .Select(id => categories.FirstOrDefault(c => c.Id == id))
-            .OfType<Category>()
-            .Select(c => new ArtPhoto(c.Id, c.Icon, c.Name, "z100"));
-        var framed = pool.Where(p => !ShopImages.CleanPhotoIds.Contains(p.Id)).Select(p => new ArtPhoto(p.Id, p.Image, p.Name, "z150"));
-        return clean.Concat(icons).Concat(framed).Take(count).ToList();
+        var clean = pool.Where(p => ShopImages.CleanPhotoIds.Contains(p.Id)).Take(3).ToList();
+        return clean.Select(p => new ShelfItem(
+                p,
+                slot is null ? p.Price : PricingService.FlashPrice(p.Price, slot.Promotion.Value),
+                p.CompareAtPrice ?? p.Price,
+                clean.Count == 1 ? 3 : 1))
+            .ToList();
     }
 
     public IActionResult Promotions(string? khung)

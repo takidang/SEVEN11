@@ -1,0 +1,31 @@
+@using SevenEleven.Core.Services
+@using SevenEleven.Web.Infrastructure
+@using SevenEleven.Web.Models.Shop
+@model TierCardModel
+@{
+    // Thẻ nhựa theo hạng: kim loại xước (đồng, bạc, vàng) hoặc thẻ đen ánh cầu vồng (kim cương), ba sọc màu
+    // của cửa hàng chạy ngang thẻ. Thẻ của khách có tên, số điện thoại và mã vạch để thu ngân quét ở quầy.
+    var info = MembershipService.Info(Model.Tier);
+}
+<div class="@TierStyle.Face(Model.Tier) tcard @Model.Css">
+    <div class="tcard-top">
+        <img class="tcard-logo" src="~/img/logo-mark.png" alt="" width="26" height="26" />
+        <span class="tcard-brand">Thẻ thành viên</span>
+        <span class="tcard-tier">@info.Label</span>
+    </div>
+    <span class="tcard-stripes" aria-hidden="true"><i></i><i></i><i></i></span>
+    <div class="tcard-bottom">
+        @if (Model.Name is not null && Model.Phone is not null)
+        {
+            <span class="tcard-holder">
+                <span class="tcard-name">@Model.Name</span>
+                <span class="tcard-no">@Fmt.Phone(Model.Phone)</span>
+            </span>
+            <span class="tcard-code">@Html.Raw(Barcode.Itf(Model.Phone, "tcard-bars"))</span>
+        }
+        else
+        {
+            <span class="tcard-note">@Model.Note</span>
+        }
+    </div>
+</div>

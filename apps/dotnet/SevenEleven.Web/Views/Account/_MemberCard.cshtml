@@ -2,6 +2,7 @@
 @using SevenEleven.Core.Models
 @using SevenEleven.Core.Services
 @using SevenEleven.Web.Infrastructure
+@using SevenEleven.Web.Models.Shop
 @model (Customer Customer, KeepStatus Keep)
 @{
     // Thẻ hạng: chi tiêu tích luỹ tới hạng kế tiếp, giữ hạng tháng này và sao vàng (member-card.tsx).
@@ -26,17 +27,9 @@
     }
 }
 <section class="mcard">
-    <div class="mcard-face @TierStyle.Face(c.Tier)">
-        <span class="mcard-blob a" aria-hidden="true"></span>
-        <span class="mcard-blob b" aria-hidden="true"></span>
-        <div class="mcard-top">
-            <span class="mcard-chip">Thẻ thành viên</span>
-            <img class="mcard-logo" src="~/img/logo-mark.png" alt="7-Eleven" width="36" height="36" />
-        </div>
-        <div class="mcard-bottom">
-            <p class="mcard-tier">@current.Label</p>
-            <a class="mcard-stars" href="@ShopUrls.AccountTab("sao-vang")"><span class="stars">@ShopIcons.Svg("star", 14) @Fmt.Num(c.Stars)</span> sao vàng @ShopIcons.Svg("chevron-right", 16, "muted")</a>
-        </div>
+    <div class="mcard-face">
+        <partial name="_TierCard" model="new TierCardModel(c.Tier, c.FullName, c.Phone)" />
+        <a class="mcard-stars" href="@ShopUrls.AccountTab("sao-vang")"><span class="stars">@ShopIcons.Svg("star", 14) @Fmt.Num(c.Stars)</span> sao vàng @ShopIcons.Svg("chevron-right", 16, "muted")</a>
     </div>
     <div class="mcard-body">
         <div class="mcard-spend-row">

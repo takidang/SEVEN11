@@ -2,34 +2,35 @@
 @using SevenEleven.Web.Infrastructure
 @model int?
 @{
-    // Bảng đổi sao. Có số sao (thành viên đang xem) thì thêm nút "Đổi"; không thì chỉ là bảng giá.
+    // Bảng đổi sao như một dải phiếu xé: các phiếu nối nhau bằng đường đục lỗ, khấc tròn ở mép.
+    // Có số sao (thành viên đang xem) thì mỗi phiếu có nút "Đổi"; không thì chỉ là bảng giá.
     var stars = Model;
 }
-<ul class="rewards2">
+<ol class="coupons" role="list">
     @foreach (var r in StarService.Rewards)
     {
         var missing = stars is int s ? Math.Max(0, r.Stars - s) : 0;
-        <li class="reward2">
-            <span class="reward2-ic">@ShopIcons.Svg("ticket-percent", 24)</span>
-            <div class="min-w-0 flex-1">
-                <p class="strong">Voucher @Fmt.Vnd(r.Value)</p>
-                <p class="xs muted">Đơn từ @Fmt.Vnd(r.MinOrderValue) · dùng trong @StarService.RewardVoucherDays ngày</p>
-                <span class="stars reward2-stars">@ShopIcons.Svg("star", 14) @r.Stars</span>
-            </div>
-            @if (stars is int have)
-            {
-                <form method="post" asp-controller="Account" asp-action="Redeem" class="reward reward2-act"
-                      data-dialog-confirm data-dialog-title="Đổi @r.Stars sao lấy voucher @Fmt.Vnd(r.Value)?"
-                      data-dialog-desc="Voucher dùng cho đơn từ @Fmt.Vnd(r.MinOrderValue), trong @StarService.RewardVoucherDays ngày. Sau khi đổi bạn còn @(have - r.Stars) sao."
-                      data-dialog-cancel="Để sau" data-dialog-ok="Đổi sao">
-                    <input type="hidden" name="rewardId" value="@r.Id" />
-                    <button class="btn btn-sm" type="submit" disabled="@(missing > 0)">Đổi</button>
-                    @if (missing > 0)
-                    {
-                        <span class="xxs muted">Thiếu @missing sao</span>
-                    }
-                </form>
-            }
+        <li class="coupon @(missing > 0 ? "short" : null)">
+            <span class="coupon-kind">Voucher</span>
+            <span class="coupon-value">@Fmt.Vnd(r.Value)</span>
+            <span class="coupon-cond">Đơn từ @Fmt.Vnd(r.MinOrderValue), dùng trong @StarService.RewardVoucherDays ngày</span>
+            <span class="coupon-foot">
+                <span class="stars coupon-cost">@ShopIcons.Svg("star", 14) @r.Stars sao</span>
+                @if (stars is int have)
+                {
+                    <form method="post" asp-controller="Account" asp-action="Redeem" class="reward coupon-act"
+                          data-dialog-confirm data-dialog-title="Đổi @r.Stars sao lấy voucher @Fmt.Vnd(r.Value)?"
+                          data-dialog-desc="Voucher dùng cho đơn từ @Fmt.Vnd(r.MinOrderValue), trong @StarService.RewardVoucherDays ngày. Sau khi đổi bạn còn @(have - r.Stars) sao."
+                          data-dialog-cancel="Để sau" data-dialog-ok="Đổi sao">
+                        <input type="hidden" name="rewardId" value="@r.Id" />
+                        @if (missing > 0)
+                        {
+                            <span class="coupon-missing">thiếu @missing sao</span>
+                        }
+                        <button class="btn btn-sm" type="submit" disabled="@(missing > 0)">Đổi</button>
+                    </form>
+                }
+            </span>
         </li>
     }
-</ul>
+</ol>

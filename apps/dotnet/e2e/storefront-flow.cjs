@@ -38,7 +38,8 @@ const fmtPhone = p => `${p.slice(0, 4)} ${p.slice(4, 7)} ${p.slice(7)}`;
   }
   async function signOut(p) {
     await p.goto(BASE + '/tai-khoan?tab=thong-tin');
-    await Promise.all([p.waitForNavigation(), p.locator('.profile-grid form[action="/Account/Logout"] button').click()]);
+    // Đăng xuất về trang chủ: chỉ đợi dựng xong trang, không đợi ảnh CDN (ảnh chậm hơn 4 giây là thông báo đã tự tắt).
+    await Promise.all([p.waitForNavigation({ waitUntil: 'domcontentloaded' }), p.locator('.profile-grid form[action="/Account/Logout"] button').click()]);
   }
 
   try {

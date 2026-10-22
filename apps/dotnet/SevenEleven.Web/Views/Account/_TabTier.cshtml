@@ -6,47 +6,40 @@
 @{
     var c = Model.Customer;
 }
-<div class="stack">
-    <section class="panel2">
-        <div class="panel2-head">
-            <div>
-                <h2 class="panel2-title">Các hạng thành viên</h2>
-                <p class="panel2-desc">Chi tiêu tích luỹ đủ mốc là lên hạng ngay. Mỗi tháng cần chi tối thiểu một mức để giữ hạng.</p>
-            </div>
-        </div>
-        <div class="panel2-body">
-            <partial name="_TierLadder" model="((MemberTier?)c.Tier, (int?)c.TierSpend)" />
-        </div>
+<div class="acct-secs">
+    <section class="acct-sec">
+        <h2 class="sec-title">Các hạng thành viên</h2>
+        <p class="sec-sub">Chi tiêu tích luỹ đủ mốc là lên hạng ngay. Mỗi tháng cần chi tối thiểu một mức để giữ hạng.</p>
+        <partial name="_TierLadder" model="((MemberTier?)c.Tier, (int?)c.TierSpend)" />
     </section>
 
-    <div class="grid-2">
-        <section class="panel2">
-            <div class="panel2-head"><h2 class="panel2-title">Cách tính hạng và sao vàng</h2></div>
-            <div class="panel2-body"><partial name="_MembershipRules" model="@("")" /></div>
+    <div class="acct-cols">
+        <section class="acct-sec">
+            <h2 class="sec-title">Cách tính hạng và sao vàng</h2>
+            <partial name="_MembershipRules" model="@("")" />
         </section>
 
-        <section class="panel2">
-            <div class="panel2-head"><h2 class="panel2-title">Lịch sử hạng</h2></div>
+        @* Lịch sử hạng ghi như sổ: ngày ở lề trái, việc gì xảy ra ở bên phải. *@
+        <section class="acct-sec">
+            <h2 class="sec-title">Lịch sử hạng</h2>
             <ol class="tier-history">
                 @foreach (var change in Model.TierHistory)
                 {
                     var up = Array.IndexOf(MembershipService.Order, change.To) > Array.IndexOf(MembershipService.Order, change.From);
                     <li>
-                        <span class="th-ic @(up ? "up" : "down")">@ShopIcons.Svg(up ? "arrow-up-right" : "arrow-down-right", 16)</span>
-                        <div class="min-w-0 flex-1">
-                            <p class="th-title">@(up ? "Lên hạng" : "Xuống hạng") <span class="@TierStyle.Chip(change.To)">@TierStyle.Label(change.To)</span> <span class="xs muted fw-normal">từ hạng @TierStyle.Label(change.From)</span></p>
-                            <p class="xs muted">@change.Reason</p>
-                        </div>
-                        <span class="xs muted tabular">@Fmt.Date(change.At)</span>
+                        <span class="th-date">@Fmt.Date(change.At)</span>
+                        <span class="th-text">
+                            <b class="@(up ? "th-up" : "th-down")">@(up ? "Lên" : "Xuống") hạng @TierStyle.Label(change.To)</b> từ hạng @TierStyle.Label(change.From).
+                            <span class="muted">@change.Reason</span>
+                        </span>
                     </li>
                 }
                 <li>
-                    <span class="th-ic join">@ShopIcons.Svg("user-round-plus", 16)</span>
-                    <div class="min-w-0 flex-1">
-                        <p class="th-title">Tham gia chương trình thành viên</p>
-                        <p class="xs muted">@(Model.TierHistory.Count > 0 ? "Bắt đầu tích luỹ chi tiêu để lên hạng." : $"Bạn đang ở hạng {TierStyle.Label(c.Tier)} từ {Fmt.Date(c.TierSince)}.")</p>
-                    </div>
-                    <span class="xs muted tabular">@Fmt.Date(c.JoinedAt)</span>
+                    <span class="th-date">@Fmt.Date(c.JoinedAt)</span>
+                    <span class="th-text">
+                        <b>Tham gia chương trình thành viên.</b>
+                        <span class="muted">@(Model.TierHistory.Count > 0 ? "Bắt đầu tích luỹ chi tiêu để lên hạng." : $"Bạn đang ở hạng {TierStyle.Label(c.Tier)} từ {Fmt.Date(c.TierSince)}.")</span>
+                    </span>
                 </li>
             </ol>
         </section>

@@ -3,7 +3,8 @@
 @using SevenEleven.Web.Infrastructure
 @model (MemberTier? Current, int? Spend)
 @{
-    // Bốn hạng trong một bảng so sánh: mỗi cột một hạng, mỗi dòng một quyền lợi (tier-ladder.tsx).
+    // Bảng quyền lợi bốn hạng, in như tờ rơi ở quầy: đường kẻ mảnh, mỗi cột một hạng có mẩu thẻ nhỏ đúng màu.
+    // Hạng của khách được đóng một con dấu đỏ thay vì tô nền cả cột như bảng giá phần mềm.
     var currentRank = Model.Current is MemberTier c ? Array.IndexOf(MembershipService.Order, c) : -1;
     (string Label, Func<TierInfo, string> Value)[] rows =
     [
@@ -19,7 +20,7 @@
         <caption class="sr-only">So sánh quyền lợi bốn hạng thành viên</caption>
         <thead>
             <tr>
-                <th scope="col" class="lt-corner"><span>Quyền lợi</span></th>
+                <th scope="col" class="lt-corner"><span class="sr-only">Quyền lợi</span></th>
                 @for (var i = 0; i < MembershipService.Order.Length; i++)
                 {
                     var tier = MembershipService.Order[i];
@@ -27,24 +28,23 @@
                     var isCurrent = Model.Current == tier;
                     var missing = Model.Spend is int spend ? Math.Max(0, info.MinSpend - spend) : 0;
                     <th scope="col" class="lt-tier @(isCurrent ? "is-current" : null)" aria-current="@(isCurrent ? "true" : null)">
-                        <div class="@TierStyle.Face(tier) lt-face">
-                            <div class="lt-face-top">
-                                <span class="lt-name">@info.Label</span>
-                                @if (isCurrent)
-                                {
-                                    <span class="lt-you">Hạng của bạn</span>
-                                }
-                                else if (currentRank >= 0 && i < currentRank)
-                                {
-                                    @ShopIcons.Svg("circle-check", 16, "lt-done", label: "Đã đạt")
-                                }
-                                else if (currentRank >= 0 && missing > 0)
-                                {
-                                    <span class="lt-missing">Còn @Fmt.Compact(missing)</span>
-                                }
-                            </div>
-                            <p class="lt-min">@(info.MinSpend > 0 ? $"Tích luỹ từ {Fmt.Vnd(info.MinSpend)}" : "Ngay khi đăng ký")</p>
-                        </div>
+                        <span class="lt-head">
+                            <span class="@TierStyle.Face(tier) lt-swatch" aria-hidden="true"></span>
+                            <span class="lt-name">@info.Label</span>
+                        </span>
+                        <span class="lt-min">@(info.MinSpend > 0 ? $"Tích luỹ từ {Fmt.Vnd(info.MinSpend)}" : "Ngay khi đăng ký")</span>
+                        @if (isCurrent)
+                        {
+                            <span class="stamp lt-stamp">Hạng của bạn</span>
+                        }
+                        else if (currentRank >= 0 && i < currentRank)
+                        {
+                            <span class="lt-note">Đã đạt</span>
+                        }
+                        else if (currentRank >= 0 && missing > 0)
+                        {
+                            <span class="lt-note">Còn @Fmt.Vnd(missing)</span>
+                        }
                     </th>
                 }
             </tr>
