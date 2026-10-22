@@ -63,4 +63,24 @@ public class Product
     public Subcategory? Subcategory { get; set; }
 
     public List<StockLevel> StockLevels { get; set; } = [];
+    public List<PriceChange> PriceChanges { get; set; } = [];
+}
+
+/// <summary>
+/// Một lần đổi giá bán hoặc giá vốn: ai đổi, lúc nào, từ bao nhiêu thành bao nhiêu. Dòng đầu tiên của
+/// sản phẩm thêm mới là giá ban đầu (giá cũ để trống).
+/// </summary>
+public class PriceChange
+{
+    public int Id { get; set; }
+    public string ProductId { get; set; } = "";
+    public Product? Product { get; set; }
+    public DateTime At { get; set; }
+    /// <summary>Nhân viên đổi giá; giữ cả tên lúc đổi để lịch sử vẫn đọc được khi hồ sơ nhân viên đổi tên.</summary>
+    public string? EmployeeId { get; set; }
+    public string EmployeeName { get; set; } = "";
+    public int? OldPrice { get; set; }
+    public int NewPrice { get; set; }
+    public int? OldCostPrice { get; set; }
+    public int NewCostPrice { get; set; }
 }

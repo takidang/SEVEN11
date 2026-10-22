@@ -31,6 +31,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<Shift> Shifts => Set<Shift>();
     public DbSet<StockMovement> StockMovements => Set<StockMovement>();
     public DbSet<StocktakeCount> StocktakeCounts => Set<StocktakeCount>();
+    public DbSet<PriceChange> PriceChanges => Set<PriceChange>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -54,6 +55,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         b.Entity<StarEntry>().HasIndex(x => new { x.CustomerId, x.At });
         b.Entity<Supplier>().HasIndex(x => x.Code).IsUnique();
         b.Entity<PurchaseOrder>().HasIndex(x => x.Code).IsUnique();
+        // Trang sửa sản phẩm đọc lịch sử giá của một sản phẩm, mới nhất trước.
+        b.Entity<PriceChange>().HasIndex(x => new { x.ProductId, x.At });
 
         // Bảng điều khiển và báo cáo luôn lọc đơn theo khoảng thời gian, thường kèm cửa hàng.
         b.Entity<Order>().HasIndex(x => x.CreatedAt);

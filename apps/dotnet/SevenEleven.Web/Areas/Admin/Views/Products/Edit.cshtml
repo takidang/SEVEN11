@@ -172,3 +172,44 @@ else
         </div>
     </section>
 }
+
+@if (p is not null)
+{
+    IHtmlContent Change(int? before, int after)
+    {
+        if (before is not int old) return new HtmlString($"<b>{Money.Format(after)}</b>");
+        if (old == after) return new HtmlString($"<span class=\"muted\">{Money.Format(after)}</span>");
+        var up = after > old;
+        var pct = old == 0 ? "" : $" {(up ? "+" : "−")}{Math.Abs(after - old) * 100.0 / old:0.#}%";
+        return new HtmlString($"<span class=\"muted\">{Money.Format(old)}</span> → <b>{Money.Format(after)}</b> " +
+                              $"<span class=\"badge {(up ? "warning" : "fresh")}\">{(up ? "Tăng" : "Giảm")}{pct}</span>");
+    }
+    <section class="panel flush" style="max-width:920px" id="lich-su-gia">
+        <div class="panel-head pad"><div><h2>Lịch sử giá</h2><p>Mỗi lần đổi giá bán hoặc giá vốn: ai đổi, lúc nào. Mới nhất ở trên.</p></div></div>
+        @if (Model.PriceHistory.Count == 0)
+        {
+            <p class="muted pad" style="margin:0">Chưa đổi giá lần nào kể từ khi có lịch sử giá. Giá hiện tại: @Money.Format(p.Price), giá vốn @Money.Format(p.CostPrice).</p>
+        }
+        else
+        {
+            <div class="table-wrap">
+                <table class="table">
+                    <thead><tr><th>Thời gian</th><th>Người đổi</th><th>Giá bán</th><th>Giá vốn</th><th class="num">Biên lãi</th></tr></thead>
+                    <tbody>
+                        @foreach (var h in Model.PriceHistory)
+                        {
+                            var margin = h.NewPrice > 0 ? (h.NewPrice - h.NewCostPrice) / (double)h.NewPrice : 0;
+                            <tr>
+                                <td>@h.At.ToString("dd/MM/yyyy HH:mm")@if (h.OldPrice is null) { <span class="cell-sub">Giá ban đầu</span> }</td>
+                                <td>@h.EmployeeName</td>
+                                <td>@Change(h.OldPrice, h.NewPrice)</td>
+                                <td>@Change(h.OldCostPrice, h.NewCostPrice)</td>
+                                <td class="num">@Money.Percent(margin)</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </section>
+}
