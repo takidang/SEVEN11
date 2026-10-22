@@ -70,7 +70,11 @@ public partial class ProductAdminService(AppDbContext db)
         return (10 - sum % 10) % 10;
     }
 
-    public async Task<SaveResult<Product>> SaveAsync(ProductInput input)
+    /// <summary>
+    /// Thêm hoặc sửa sản phẩm. Đổi giá bán hay giá vốn thì ghi một dòng lịch sử giá kèm người đổi
+    /// (<paramref name="actor"/>); sản phẩm mới ghi giá ban đầu.
+    /// </summary>
+    public async Task<SaveResult<Product>> SaveAsync(ProductInput input, Actor? actor = null, DateTime? now = null)
     {
         var errors = new FormErrors();
         var name = input.Name?.Trim() ?? "";
@@ -134,6 +138,7 @@ public partial class ProductAdminService(AppDbContext db)
             };
             db.Products.Add(product);
         }
+        var (oldPrice, oldCost) = (product.Price, product.CostPrice);
         product.Name = name;
         product.CategoryId = category!.Id;
         product.SubcategoryId = subcategory!.Id;
@@ -150,6 +155,22 @@ public partial class ProductAdminService(AppDbContext db)
         product.IsActive = input.IsActive;
         product.IsNew = input.IsNew;
         product.AgeRestricted = input.AgeRestricted || category.AgeRestricted;
+
+        if (isNew || oldPrice != product.Price || oldCost != product.CostPrice)
+        {
+            var employee = actor is null ? null : await db.Employees.FindAsync(actor.Id);
+            db.PriceChanges.Add(new PriceChange
+            {
+                ProductId = product.Id,
+                At = now ?? DateTime.Now,
+                EmployeeId = employee?.Id,
+                EmployeeName = employee?.FullName ?? "Hệ thống",
+                OldPrice = isNew ? null : oldPrice,
+                NewPrice = product.Price,
+                OldCostPrice = isNew ? null : oldCost,
+                NewCostPrice = product.CostPrice,
+            });
+        }
 
         if (isNew)
         {

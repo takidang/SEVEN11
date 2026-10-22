@@ -90,7 +90,7 @@ public class ProductsController(AppDbContext db, ProductAdminService products) :
     [HttpPost, ValidateAntiForgeryToken]
     public async Task<IActionResult> Save(ProductInput input)
     {
-        var result = await products.SaveAsync(input);
+        var result = await products.SaveAsync(input, new Actor(Staff.Id, Staff.Role, Staff.StoreId));
         if (!result.Ok)
         {
             var product = input.Id is null ? null : await Db.Products.Include(p => p.Category).FirstOrDefaultAsync(p => p.Id == input.Id);
@@ -116,8 +116,10 @@ public class ProductsController(AppDbContext db, ProductAdminService products) :
         var categories = await Db.Categories.AsNoTracking().Include(c => c.Subcategories).OrderBy(c => c.SortOrder).ToListAsync();
         var stock = product is null ? [] : await Db.StockLevels.AsNoTracking().Include(s => s.Store)
             .Where(s => s.ProductId == product.Id).OrderBy(s => s.Store!.Code).ToListAsync();
+        var history = product is null ? [] : await Db.PriceChanges.AsNoTracking()
+            .Where(c => c.ProductId == product.Id).OrderByDescending(c => c.At).ThenByDescending(c => c.Id).ToListAsync();
         ViewData["Title"] = product is null ? "Thêm sản phẩm" : product.Name;
-        return View("Edit", new ProductFormModel(input, product, categories, stock, errors ?? new FormErrors(), CanManage));
+        return View("Edit", new ProductFormModel(input, product, categories, stock, errors ?? new FormErrors(), CanManage, history));
     }
 }
 
@@ -131,4 +133,6 @@ public record ProductListModel(
     List<ProductRow> Rows, int Filtered, int Total, ProductStats Stats, List<Category> Categories, int Page, int Pages,
     string? Query, string? Category, string? Status, bool Sale, string Sort, int StoreCount);
 
-public record ProductFormModel(ProductInput Input, Product? Product, List<Category> Categories, List<StockLevel> Stock, FormErrors Errors, bool CanEdit);
+public record ProductFormModel(
+    ProductInput Input, Product? Product, List<Category> Categories, List<StockLevel> Stock, FormErrors Errors, bool CanEdit,
+    List<PriceChange> PriceHistory);

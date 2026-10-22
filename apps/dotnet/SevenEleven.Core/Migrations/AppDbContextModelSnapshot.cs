@@ -458,6 +458,45 @@ namespace SevenEleven.Core.Migrations
                     b.ToTable("OrderItems");
                 });
 
+            modelBuilder.Entity("SevenEleven.Core.Models.PriceChange", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("At")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("EmployeeId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("EmployeeName")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("NewCostPrice")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("NewPrice")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("OldCostPrice")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("OldPrice")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("ProductId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProductId", "At");
+
+                    b.ToTable("PriceChanges");
+                });
+
             modelBuilder.Entity("SevenEleven.Core.Models.Product", b =>
                 {
                     b.Property<string>("Id")
@@ -1155,6 +1194,17 @@ namespace SevenEleven.Core.Migrations
                     b.Navigation("Product");
                 });
 
+            modelBuilder.Entity("SevenEleven.Core.Models.PriceChange", b =>
+                {
+                    b.HasOne("SevenEleven.Core.Models.Product", "Product")
+                        .WithMany("PriceChanges")
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Product");
+                });
+
             modelBuilder.Entity("SevenEleven.Core.Models.Product", b =>
                 {
                     b.HasOne("SevenEleven.Core.Models.Category", "Category")
@@ -1342,6 +1392,8 @@ namespace SevenEleven.Core.Migrations
 
             modelBuilder.Entity("SevenEleven.Core.Models.Product", b =>
                 {
+                    b.Navigation("PriceChanges");
+
                     b.Navigation("StockLevels");
                 });
 

@@ -81,7 +81,8 @@ Chú thích: ✅ xong · 🚧 đang làm · ⏳ chưa làm
   lại được mật khẩu (cấp mật khẩu tạm, bắt đổi lại). Nhánh `feat/change-password`.
 - ✅ G2. Sai mật khẩu 5 lần liên tiếp thì khoá đăng nhập 15 phút, cả nhân viên lẫn khách; đang khoá thì
   mật khẩu đúng cũng bị từ chối; quên mật khẩu qua OTP hoặc quản trị đặt lại thì mở khoá. `feat/login-lockout`
-- ⏳ G3. Lịch sử đổi giá bán, giá vốn (ai đổi, lúc nào), xem trong trang sửa sản phẩm. `feat/price-history`
+- ✅ G3. Lịch sử đổi giá bán, giá vốn (ai đổi, lúc nào), xem trong trang sửa sản phẩm; sản phẩm mới ghi giá ban
+  đầu; quản lý chỉ xem cũng thấy lịch sử. `feat/price-history`
 - ⏳ G4. Tải ảnh sản phẩm lên (jpg, png, webp tối đa 2 MB) thay vì dán link. `feat/product-image-upload`
 - ⏳ G5. Phiếu nhập nhận thiếu, nhận nhiều đợt, có nút kết thúc phiếu. `feat/partial-receiving`
 - ⏳ G6. Chuyển kho giữa các cửa hàng: bên gửi trừ kho, bên nhận xác nhận thì cộng kho, giữ hạn dùng của lô. `feat/stock-transfer`
