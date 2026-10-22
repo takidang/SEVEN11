@@ -1,0 +1,46 @@
+# Lỗi cần sửa (từ kiểm thử)
+
+Người ghi: Tài Đặng (tester). Cập nhật: 22/10/2026. Phạm vi: bản .NET (`apps/dotnet`), nhánh `dev` đã gộp `main` tới `d4ba7ca`.
+
+| # | Mức | Lỗi | Ai sửa | Trạng thái |
+| --- | --- | --- | --- | --- |
+| 1 | Cao | `e2e/storefront-flow.cjs` treo nếu chạy sau giờ flash sale sáng | Phát | Chưa sửa |
+| 2 | Trung bình | Bộ e2e hỏng dần nếu chạy nhiều lần trên cùng dữ liệu | Phát | Chưa sửa |
+| 3 | Thấp | README chưa nói rõ cách chạy trên Windows | Phát | Gợi ý |
+
+## 1. `storefront-flow.cjs` treo khi chạy sau giờ flash sale sáng
+
+**Hiện tượng:** script dừng ở mục "H. Khuyến mãi", báo `BAD script crashed — locator.click: Timeout 30000ms exceeded`. Kết quả: 1 kiểm tra hỏng / 74, các kiểm tra sau đó không chạy.
+
+**Cách tái hiện:** chạy `node e2e/storefront-flow.cjs` vào buổi chiều hoặc tối. Lỗi xảy ra cả trên `main` gốc (`d4ba7ca`), không liên quan đến các nhánh `feat/*`.
+
+**Nguyên nhân:** dòng 331 bấm vào nút "+" **đầu tiên trong HTML** của trang `/khuyen-mai`:
+
+```js
+await g.locator('.pcard .qa-plus').first().click();
+```
+
+Nút đầu tiên nằm trong khung "Flash sale hôm nay", ở tab khung giờ **sáng** (`data-panel="slot:pr-fs-sang"`). Ngoài giờ sáng, tab này có `hidden`, nút không bấm được nên Playwright chờ tới hết 30 giây. Trang có 42 nút "+", trong đó 18 nút đang hiện. **Giao diện không lỗi**: ở cả 390px lẫn 1366px đều vậy, người dùng thật vẫn bấm được các nút đang hiện.
+
+**Cách sửa (đã thử: 90/90 đạt lúc 22/10 tối):**
+
+```js
+await g.locator('.pcard .qa-plus:visible').first().click();
+```
+
+## 2. Bộ e2e hỏng dần khi chạy nhiều lần trên cùng dữ liệu
+
+**Hiện tượng:** sau vài lần chạy `storefront-flow.cjs`, kiểm tra `account tab tong-quan — Quyền lợi hạng Vàng` bắt đầu hỏng.
+
+**Nguyên nhân:** mỗi lần chạy, script đặt thêm đơn bằng khách demo `0901234567`. Chi tiêu cộng dồn từ 4.770.000 ₫ lên quá 5.000.000 ₫, nên khách lên hạng Kim cương, mà script lại cố định chữ "hạng Vàng". Đo được 22/10: 5.189.000 ₫, hạng Kim cương.
+
+**Cách sửa (chọn một):**
+- `e2e/run-all.sh` tạo lại dữ liệu mẫu trước mỗi vòng (đăng nhập `admin@7eleven.demo` → menu → "Tạo lại dữ liệu mẫu", hoặc xoá `sevenEleven.db*` rồi chạy lại app).
+- Hoặc kiểm tra "Quyền lợi hạng" theo hạng đang hiện trên thẻ thành viên, không cố định "Vàng".
+
+**Cách né tạm thời:** bấm "Tạo lại dữ liệu mẫu" trước khi chạy e2e. Tester đang làm vậy (script `reset-demo.cjs`).
+
+## 3. README chưa nói về Windows (không phải lỗi)
+
+- `apps/dotnet/README.md` ghi cần `clang++` hoặc `g++`. Máy Windows không có sẵn hai trình biên dịch này, nên lõi tính giá C++ không được build. App vẫn chạy đúng bằng bản C# dự phòng (chân trang ghi "Lõi tính giá: C# (dự phòng)").
+- Nên thêm một dòng cho người dùng Windows: chỉ cần cài .NET 8 SDK (`winget install Microsoft.DotNet.SDK.8`), không bắt buộc có C++.
