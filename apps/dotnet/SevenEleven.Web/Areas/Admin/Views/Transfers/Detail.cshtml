@@ -1,0 +1,78 @@
+@using SevenEleven.Web.Areas.Admin.Controllers
+@model TransferDetailModel
+@{
+    var t = Model.Transfer;
+}
+<div class="page-head">
+    <div>
+        <h1>Phiếu chuyển @t.Code <span class="badge @StockTransferService.Tone(t.Status)" style="vertical-align:middle">@StockTransferService.Label(t.Status)</span></h1>
+        <p>Cửa hàng @t.FromStore?.Code – @t.FromStore?.Name → cửa hàng @t.ToStore?.Code – @t.ToStore?.Name · gửi @t.CreatedAt.ToString("HH:mm dd/MM/yyyy") bởi @t.CreatedBy</p>
+    </div>
+    <div class="page-actions">
+        <a class="btn" asp-action="Index">← Danh sách phiếu</a>
+        @if (Model.CanReceive)
+        {
+            <form method="post" asp-action="Receive" asp-route-id="@t.Id" class="inline"
+                  data-confirm="Đã nhận đủ @t.Items.Sum(i => i.Quantity) sản phẩm của phiếu @t.Code? Kho cửa hàng @t.ToStore?.Code sẽ cộng ngay.">
+                <button class="btn btn-primary" type="submit">Đã nhận hàng</button>
+            </form>
+        }
+        @if (Model.CanCancel)
+        {
+            <form method="post" asp-action="Cancel" asp-route-id="@t.Id" class="inline" data-confirm="Huỷ phiếu @t.Code? Hàng sẽ về lại kho cửa hàng @t.FromStore?.Code.">
+                <button class="btn btn-danger" type="submit">Huỷ phiếu</button>
+            </form>
+        }
+    </div>
+</div>
+
+@if (t.Status == StockTransferStatus.InTransit)
+{
+    <div class="flash flash-warn">
+        @Icons.Svg("clock", 16) Hàng đang trên đường. Kho cửa hàng @t.FromStore?.Code đã trừ; kho cửa hàng @t.ToStore?.Code chỉ cộng khi bên nhận bấm "Đã nhận hàng".
+        @if (!Model.CanReceive) { <text>Chỉ cửa hàng nhận (hoặc quản trị) mới xác nhận được.</text> }
+    </div>
+}
+else if (t.Status == StockTransferStatus.Received)
+{
+    <div class="flash flash-ok">@Icons.Svg("check", 16) Đã nhận lúc @t.ReceivedAt?.ToString("HH:mm dd/MM/yyyy") bởi @t.ReceivedBy. Hàng có hạn dùng giữ nguyên mã lô và hạn dùng ở cửa hàng nhận.</div>
+}
+else
+{
+    <div class="flash flash-warn">Đã huỷ lúc @t.CancelledAt?.ToString("HH:mm dd/MM/yyyy") bởi @t.CancelledBy. Hàng đã về lại kho cửa hàng @t.FromStore?.Code.</div>
+}
+@if (t.Note is string note)
+{
+    <div class="flash flash-warn">Ghi chú: @note</div>
+}
+
+<div class="panel flush">
+    <div class="panel-head pad"><div><h2>@t.Items.Count mặt hàng · @t.Items.Sum(i => i.Quantity) sản phẩm</h2><p>Lô và hạn dùng của hàng có hạn dùng được mang theo sang cửa hàng nhận</p></div></div>
+    <div class="table-wrap">
+        <table class="table">
+            <thead><tr><th>Mặt hàng</th><th class="num">Số lượng</th><th>Lô · hạn dùng</th></tr></thead>
+            <tbody>
+                @foreach (var i in t.Items)
+                {
+                    <tr>
+                        <td><span class="product-cell"><img class="thumb" src="@i.Product?.Image" alt="" loading="lazy" /><span>@i.Product?.Name<span class="cell-sub">@i.Product?.Sku</span></span></span></td>
+                        <td class="num">@i.Quantity</td>
+                        <td>
+                            @if (i.Lots.Count == 0)
+                            {
+                                <span class="muted">Hàng dài hạn, không theo lô</span>
+                            }
+                            else
+                            {
+                                @foreach (var l in i.Lots)
+                                {
+                                    <span class="cell-sub" style="display:block">Lô @l.LotCode × @l.Quantity · hạn @l.ExpiresAt?.ToString("HH:mm dd/MM/yyyy")</span>
+                                }
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>

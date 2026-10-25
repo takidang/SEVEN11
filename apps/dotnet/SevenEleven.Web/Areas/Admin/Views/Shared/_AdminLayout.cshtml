@@ -4,6 +4,7 @@
     var scopeStore = ViewBag.ScopeStore as Store;
     var scopeId = ViewBag.ScopeStoreId as string;
     int pending = ViewBag.PendingCount ?? 0;
+    int incoming = ViewBag.IncomingTransfers ?? 0;
     var controller = ViewContext.RouteData.Values["controller"] as string;
     var here = Context.Request.Path + Context.Request.QueryString;
     var role = staff?.Role ?? StaffRole.Cashier;
@@ -11,7 +12,7 @@
     var groups = new (string Title, (string Controller, string Label, string Icon)[] Items)[]
     {
         ("Bán hàng", [("Dashboard", "Tổng quan", "dashboard"), ("Pos", "Bán tại quầy", "pos"), ("Orders", "Đơn hàng", "orders")]),
-        ("Hàng hoá", [("Products", "Sản phẩm", "product"), ("Stock", "Kho hàng", "stock"), ("Purchasing", "Nhập hàng", "purchasing"), ("Suppliers", "Nhà cung cấp", "supplier")]),
+        ("Hàng hoá", [("Products", "Sản phẩm", "product"), ("Stock", "Kho hàng", "stock"), ("Transfers", "Chuyển kho", "transfer"), ("Purchasing", "Nhập hàng", "purchasing"), ("Suppliers", "Nhà cung cấp", "supplier")]),
         ("Khách & ưu đãi", [("Customers", "Khách hàng", "users"), ("Promotions", "Khuyến mãi", "promotion")]),
         ("Vận hành", [("Staff", "Nhân viên & ca", "staff"), ("Stores", "Cửa hàng", "store"), ("Reports", "Báo cáo", "reports")]),
     };
@@ -57,6 +58,10 @@
                             @if (item.Controller == "Orders")
                             {
                                 <span class="nav-count" title="Đơn online chờ xác nhận" data-pending-count hidden="@(pending == 0)">@pending</span>
+                            }
+                            @if (item.Controller == "Transfers" && incoming > 0)
+                            {
+                                <span class="nav-count" title="Phiếu chuyển kho đang chờ nhận">@incoming</span>
                             }
                         </a>
                     }

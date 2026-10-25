@@ -1,0 +1,51 @@
+@using SevenEleven.Web.Areas.Admin.Controllers
+@model TransferListModel
+<div class="page-head">
+    <div>
+        <h1>Chuyển kho</h1>
+        <p>Chuyển hàng giữa các cửa hàng. Kho bên gửi trừ ngay khi gửi; kho bên nhận chỉ cộng khi bấm "Đã nhận hàng".</p>
+    </div>
+    <div class="page-actions">
+        <partial name="~/Areas/Admin/Views/Stock/_Tabs.cshtml" model="@("transfers")" />
+        <a class="btn btn-primary" asp-action="New">@Icons.Svg("plus", 16) Lập phiếu chuyển</a>
+    </div>
+</div>
+
+<div class="panel flush">
+    <div style="padding:16px">
+        <nav class="seg" aria-label="Lọc phiếu chuyển">
+            @foreach (var (key, label) in TransfersController.Tabs)
+            {
+                <a asp-action="Index" asp-route-tab="@key" class="@(Model.Tab == key ? "active" : null)">@label<span class="n">@Model.Counts.GetValueOrDefault(key)</span></a>
+            }
+        </nav>
+    </div>
+    @if (Model.Transfers.Count == 0)
+    {
+        <p class="empty">@(Model.Tab == "cho-nhan" ? "Không có phiếu nào đang chờ nhận." : "Chưa có phiếu chuyển kho nào.")</p>
+    }
+    else
+    {
+        <div class="table-wrap">
+            <table class="table">
+                <thead><tr><th>Mã phiếu</th><th>Từ cửa hàng</th><th>Tới cửa hàng</th><th class="num">Mặt hàng</th><th class="num">Số lượng</th><th>Trạng thái</th><th>Gửi lúc</th><th>Người gửi</th></tr></thead>
+                <tbody>
+                    @foreach (var t in Model.Transfers)
+                    {
+                        var mineIncoming = t.Status == StockTransferStatus.InTransit && (Model.ScopeStoreId is null || t.ToStoreId == Model.ScopeStoreId);
+                        <tr>
+                            <td><a class="code-link" asp-action="Detail" asp-route-id="@t.Id">@t.Code</a></td>
+                            <td class="wrap">@t.FromStore?.Code – @t.FromStore?.Name</td>
+                            <td class="wrap">@t.ToStore?.Code – @t.ToStore?.Name</td>
+                            <td class="num">@t.Items.Count</td>
+                            <td class="num">@t.Items.Sum(i => i.Quantity)</td>
+                            <td><span class="badge @StockTransferService.Tone(t.Status)">@StockTransferService.Label(t.Status)</span>@if (mineIncoming) { <span class="cell-sub">chờ bạn nhận</span> }</td>
+                            <td>@t.CreatedAt.ToString("HH:mm dd/MM")</td>
+                            <td>@t.CreatedBy</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>

@@ -1,0 +1,81 @@
+@using SevenEleven.Web.Areas.Admin.Controllers
+@model TransferFormModel
+@{
+    string Entered(string productId) => Model.Entered.GetValueOrDefault(productId) ?? "";
+}
+<div class="page-head">
+    <div>
+        <h1>Lập phiếu chuyển kho</h1>
+        <p>@(Model.From is null ? "Chọn cửa hàng gửi trước." : $"Gửi từ cửa hàng {Model.From.Code} – {Model.From.Name}. Kho cửa hàng này trừ ngay khi bấm Gửi.")</p>
+    </div>
+    <a class="btn" asp-action="Index">← Danh sách phiếu</a>
+</div>
+
+@if (Model.From is null)
+{
+    <section class="panel"><p class="empty"><b>Chọn cửa hàng gửi hàng</b><br />Chọn cửa hàng ở ô “Toàn chuỗi” trên thanh đầu trang, rồi mở lại trang này.</p></section>
+}
+else
+{
+    @if (Model.Error is string error)
+    {
+        <div class="flash flash-error" role="alert">@Icons.Svg("alert", 16) @error</div>
+    }
+    <form method="get" asp-action="New" class="panel toolbar">
+        <input class="input" name="q" value="@Model.Query" placeholder="Tìm mặt hàng theo tên, SKU hoặc mã vạch" style="flex:1;min-width:0" aria-label="Tìm mặt hàng" />
+        <button class="btn" type="submit">@Icons.Svg("search", 16) Tìm</button>
+    </form>
+
+    <form method="post" asp-action="Create" class="panel flush" id="transfer-form"
+          data-confirm="Gửi hàng đi? Kho cửa hàng @Model.From.Code sẽ trừ ngay các số lượng đã nhập.">
+        <input type="hidden" name="q" value="@Model.Query" />
+        <div class="form pad" style="padding:16px">
+            <div class="form-grid">
+                <label class="field"><span>Gửi tới cửa hàng</span>
+                    <select name="toStoreId" required>
+                        <option value="">Chọn cửa hàng nhận</option>
+                        @foreach (var s in Model.Stores)
+                        {
+                            <option value="@s.Id" selected="@(s.Id == Model.ToStoreId)">@s.Code – @s.Name@(s.Status == StoreStatus.Maintenance ? " (bảo trì)" : "")</option>
+                        }
+                    </select>
+                </label>
+                <label class="field"><span>Ghi chú <small class="help">không bắt buộc</small></span>
+                    <input name="note" value="@Model.Note" maxlength="200" placeholder="Ví dụ: Hỗ trợ cửa hàng hết sữa tươi cuối tuần" />
+                </label>
+            </div>
+        </div>
+        @if (Model.Rows.Count == 0)
+        {
+            <p class="empty">@(string.IsNullOrWhiteSpace(Model.Query) ? "Cửa hàng chưa có hàng nào để chuyển." : $"Không có mặt hàng nào khớp “{Model.Query}” đang còn tồn.")</p>
+        }
+        else
+        {
+            <div class="table-wrap">
+                <table class="table">
+                    <thead><tr><th>Mặt hàng</th><th class="num">Tồn hiện có</th><th class="num">Chuyển được</th><th>Hạn gần nhất</th><th class="num">Số lượng chuyển</th></tr></thead>
+                    <tbody>
+                        @foreach (var r in Model.Rows)
+                        {
+                            var p = r.Product;
+                            <tr class="@(r.Movable == 0 ? "muted-row" : null)" title="@(r.Movable == 0 ? "Mọi lô của mặt hàng này đã hết hạn, không chuyển được" : null)">
+                                <td><span class="product-cell"><img class="thumb" src="@p.Image" alt="" loading="lazy" /><span>@p.Name<span class="cell-sub">@p.Sku@(p.ShelfLifeDays is int d ? $" · hạn {d} ngày" : "")</span></span></span></td>
+                                <td class="num">@r.OnHand</td>
+                                <td class="num @(r.Movable < r.OnHand ? "state-low" : null)" title="@(r.Movable < r.OnHand ? "Hàng có hạn dùng: chỉ chuyển phần còn hạn theo lô" : null)">@r.Movable</td>
+                                <td>@(r.SoonestExpiry?.ToString("dd/MM/yyyy") ?? (p.ShelfLifeDays is null ? "Dài hạn" : "—"))</td>
+                                <td class="num">
+                                    <input class="input input-num" type="number" name="qty[@p.Id]" min="0" max="@r.Movable" step="1" value="@Entered(p.Id)"
+                                           placeholder="0" aria-label="Số lượng chuyển @p.Name" disabled="@(r.Movable == 0)" />
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+        <div class="receive-bar">
+            <button class="btn btn-primary" type="submit">@Icons.Svg("transfer", 16) Gửi hàng</button>
+            <small class="muted">Hàng có hạn dùng được lấy từ lô còn hạn, hết hạn sớm nhất trước, và giữ nguyên mã lô, hạn dùng khi sang cửa hàng nhận.</small>
+        </div>
+    </form>
+}

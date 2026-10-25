@@ -1,7 +1,8 @@
 @model string
 <nav class="seg" aria-label="Mục kho">
-    <a asp-action="Index" class="@(Model == "stock" ? "active" : null)">Tồn kho</a>
-    <a asp-action="Stocktake" class="@(Model == "stocktake" ? "active" : null)">Kiểm kê</a>
-    <a asp-action="Batches" class="@(Model == "batches" ? "active" : null)">Lô hàng & hạn dùng</a>
-    <a asp-action="Movements" class="@(Model == "movements" ? "active" : null)">Nhật ký kho</a>
+    <a asp-controller="Stock" asp-action="Index" class="@(Model == "stock" ? "active" : null)">Tồn kho</a>
+    <a asp-controller="Stock" asp-action="Stocktake" class="@(Model == "stocktake" ? "active" : null)">Kiểm kê</a>
+    <a asp-controller="Stock" asp-action="Batches" class="@(Model == "batches" ? "active" : null)">Lô hàng & hạn dùng</a>
+    <a asp-controller="Stock" asp-action="Movements" class="@(Model == "movements" ? "active" : null)">Nhật ký kho</a>
+    <a asp-controller="Transfers" asp-action="Index" class="@(Model == "transfers" ? "active" : null)">Chuyển kho</a>
 </nav>

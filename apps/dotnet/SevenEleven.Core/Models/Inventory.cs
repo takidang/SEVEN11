@@ -41,6 +41,10 @@ public enum StockMovementKind
     Stocktake,
     /// <summary>Xuất huỷ một lô.</summary>
     Discard,
+    /// <summary>Chuyển kho đi cửa hàng khác.</summary>
+    TransferOut,
+    /// <summary>Nhận hàng chuyển kho (hoặc hàng về lại khi huỷ phiếu chuyển).</summary>
+    TransferIn,
 }
 
 /// <summary>
