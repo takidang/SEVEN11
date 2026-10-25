@@ -9,6 +9,8 @@ chữ tiếng Việt, luồng màn hình lấy từ đó. Kế hoạch và tiế
 ## Chạy
 
 Cần .NET SDK 8 và một trình biên dịch C++17 (`clang++` có sẵn trên macOS, `g++` trên Linux).
+Trên Windows chỉ cần .NET 8 SDK (`winget install Microsoft.DotNet.SDK.8`): không có trình biên dịch C++ thì
+app tự dùng lõi tính giá bản C#, chân trang khu quản lý ghi "Lõi tính giá: C# (dự phòng)".
 
 ```bash
 cd apps/dotnet/SevenEleven.Web
