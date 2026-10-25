@@ -1,6 +1,6 @@
 # Lỗi cần sửa (từ kiểm thử)
 
-Người ghi: Tài Đặng (tester). Cập nhật: 22/10/2026. Phạm vi: bản .NET (`apps/dotnet`), nhánh `dev` đã gộp `main` tới `d4ba7ca`.
+Người ghi: Tài Đặng (tester). Cập nhật: 25/10/2026. Phạm vi: bản .NET (`apps/dotnet`), nhánh `dev` đã gộp `main` tới `d4ba7ca`.
 
 | # | Mức | Lỗi | Ai sửa | Trạng thái |
 | --- | --- | --- | --- | --- |
@@ -21,6 +21,9 @@ await g.locator('.pcard .qa-plus').first().click();
 ```
 
 Nút đầu tiên nằm trong khung "Flash sale hôm nay", ở tab khung giờ **sáng** (`data-panel="slot:pr-fs-sang"`). Ngoài giờ sáng, tab này có `hidden`, nút không bấm được nên Playwright chờ tới hết 30 giây. Trang có 42 nút "+", trong đó 18 nút đang hiện. **Giao diện không lỗi**: ở cả 390px lẫn 1366px đều vậy, người dùng thật vẫn bấm được các nút đang hiện.
+
+**Xác nhận thêm (25/10):** `main` chưa có commit sửa. Chạy lúc 09:04 (trong giờ flash sale sáng) thì đạt 90/90,
+đúng như phân tích: lỗi chỉ xuất hiện khi chạy buổi chiều hoặc tối.
 
 **Cách sửa (đã thử: 90/90 đạt lúc 22/10 tối):**
 
