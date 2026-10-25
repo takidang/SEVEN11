@@ -666,6 +666,12 @@ namespace SevenEleven.Core.Migrations
                     b.Property<string>("Id")
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("ClosedBy")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ClosedReason")
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("Code")
                         .IsRequired()
                         .HasColumnType("TEXT");
@@ -733,6 +739,9 @@ namespace SevenEleven.Core.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<int>("Quantity")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("ReceivedQuantity")
                         .HasColumnType("INTEGER");
 
                     b.HasKey("Id");

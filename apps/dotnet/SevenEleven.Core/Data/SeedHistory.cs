@@ -613,6 +613,7 @@ public static partial class SeedData
                 : PurchaseOrderStatus.Ordered;
             if (i is 3 or 17) status = PurchaseOrderStatus.Draft;
             if (i == 9) status = PurchaseOrderStatus.Cancelled;
+            if (status == PurchaseOrderStatus.Received) foreach (var it in items) it.ReceivedQuantity = it.Quantity;
             orders.Add(new PurchaseOrder
             {
                 Id = $"po-{i + 1:000}",
@@ -635,6 +636,7 @@ public static partial class SeedData
         {
             o.Status = PurchaseOrderStatus.Ordered;
             o.ReceivedAt = null;
+            foreach (var it in o.Items) it.ReceivedQuantity = 0;
         }
         for (var i = 0; i < orders.Count; i++) orders[i].Code = $"PN{i + 1:00000}";
         return orders;

@@ -12,10 +12,21 @@ public record PurchaseResult(bool Ok, PurchaseOrder? Order, string? Error)
 /// <summary>
 /// Nhập hàng, chuyển từ các action phiếu nhập của stores/db.ts. Phiếu đi Nháp → Đã đặt hàng →
 /// Đã nhập kho. Chỉ phiếu nháp mới sửa được dòng hàng; nhận hàng thì cộng tồn kho và tạo lô cho
-/// hàng có hạn dùng.
+/// hàng có hạn dùng. Nhà cung cấp giao thiếu thì nhận nhiều đợt (phiếu ở trạng thái Đang nhận hàng);
+/// không giao nữa thì Kết thúc phiếu với số đã nhận.
 /// </summary>
 public class PurchasingService(AppDbContext db)
 {
+    /// <summary>Thứ tự hiển thị các trạng thái (khác thứ tự số lưu trong cơ sở dữ liệu).</summary>
+    public static readonly PurchaseOrderStatus[] StatusOrder =
+    [
+        PurchaseOrderStatus.Draft, PurchaseOrderStatus.Ordered, PurchaseOrderStatus.PartiallyReceived,
+        PurchaseOrderStatus.Received, PurchaseOrderStatus.Closed, PurchaseOrderStatus.Cancelled,
+    ];
+
+    /// <summary>Phiếu còn chờ nhà cung cấp giao hàng (chưa nhận gì hoặc mới nhận một phần).</summary>
+    public static bool AwaitingDelivery(PurchaseOrderStatus s) => s is PurchaseOrderStatus.Ordered or PurchaseOrderStatus.PartiallyReceived;
+
     /// <summary>Nhà cung cấp hẹn giao sau một ngày.</summary>
     public const int LeadTimeHours = 24;
 
@@ -112,20 +123,40 @@ public class PurchasingService(AppDbContext db)
         return new PurchaseResult(true, order, null);
     }
 
+    /// <summary>Nhận đủ toàn bộ phần còn thiếu của phiếu trong một lần.</summary>
+    public Task<PurchaseResult> ReceiveAsync(string orderId, string? by = null) => ReceiveAsync(orderId, null, by);
+
     /// <summary>
-    /// Nhận hàng: cộng tồn kho từng mặt hàng; hàng có hạn dùng thì tạo lô, hạn tính từ hôm nhận.
+    /// Nhận một đợt hàng: <paramref name="quantities"/> là số nhận đợt này của từng dòng (mã dòng → số
+    /// lượng), null là nhận đủ phần còn thiếu. Cộng tồn kho, ghi nhật ký kho; hàng có hạn dùng thì tạo lô
+    /// riêng cho đợt này, hạn tính từ hôm nhận. Nhận đủ mọi dòng thì phiếu sang Đã nhập kho, chưa đủ thì
+    /// Đang nhận hàng. Không nhận quá số đặt.
     /// </summary>
-    public async Task<PurchaseResult> ReceiveAsync(string orderId, string? by = null)
+    public async Task<PurchaseResult> ReceiveAsync(string orderId, IReadOnlyDictionary<int, int>? quantities, string? by)
     {
         // Khoá trước khi đọc trạng thái phiếu: bấm "Nhận hàng" hai lần (hai máy) chỉ cộng kho một lần.
         await using var tx = await db.Database.BeginTransactionAsync();
         var order = await db.PurchaseOrders.Include(p => p.Items).ThenInclude(i => i.Product).FirstOrDefaultAsync(p => p.Id == orderId);
-        if (order is null || order.Status != PurchaseOrderStatus.Ordered) return PurchaseResult.Fail("Phiếu này không ở trạng thái chờ nhận hàng");
+        if (order is null || !AwaitingDelivery(order.Status)) return PurchaseResult.Fail("Phiếu này không ở trạng thái chờ nhận hàng");
+
+        var plan = new List<(PurchaseOrderItem Item, int Quantity)>();
+        foreach (var item in order.Items)
+        {
+            var quantity = quantities is null ? item.Remaining : quantities.GetValueOrDefault(item.Id);
+            if (quantity < 0) return PurchaseResult.Fail("Số lượng nhận không được âm");
+            if (quantity > item.Remaining)
+                return PurchaseResult.Fail($"{item.Product?.Name}: chỉ còn thiếu {item.Remaining}, không nhận quá số đã đặt");
+            if (quantity > 0) plan.Add((item, quantity));
+        }
+        if (plan.Count == 0) return PurchaseResult.Fail("Nhập số lượng nhận cho ít nhất một mặt hàng");
 
         var now = DateTime.Now;
-        var ids = order.Items.Select(i => i.ProductId).ToList();
+        // Đợt thứ mấy: đếm các lần nhận trước của phiếu trong nhật ký kho (mỗi đợt ghi cùng một thời điểm).
+        var round = await db.StockMovements.Where(m => m.Ref == order.Code && m.Kind == StockMovementKind.Receive)
+            .Select(m => m.At).Distinct().CountAsync() + 1;
+        var ids = plan.Select(x => x.Item.ProductId).ToList();
         var stock = await db.StockLevels.Where(s => s.StoreId == order.StoreId && ids.Contains(s.ProductId)).ToDictionaryAsync(s => s.ProductId);
-        foreach (var item in order.Items)
+        foreach (var (item, quantity) in plan)
         {
             if (!stock.TryGetValue(item.ProductId, out var level))
             {
@@ -133,28 +164,55 @@ public class PurchasingService(AppDbContext db)
                 db.StockLevels.Add(level);
                 stock[item.ProductId] = level;
             }
-            level.Quantity += item.Quantity;
+            level.Quantity += quantity;
+            item.ReceivedQuantity += quantity;
             db.StockMovements.Add(new StockMovement
             {
-                StoreId = order.StoreId, ProductId = item.ProductId, At = now, Delta = item.Quantity, QuantityAfter = level.Quantity,
+                StoreId = order.StoreId, ProductId = item.ProductId, At = now, Delta = quantity, QuantityAfter = level.Quantity,
                 Kind = StockMovementKind.Receive, Ref = order.Code, By = by,
             });
 
             if (item.Product?.ShelfLifeDays is int days)
             {
+                var lot = item.LotCode ?? $"{order.Code}-{item.Product.Sku}";
                 db.InventoryBatches.Add(new InventoryBatch
                 {
                     StoreId = order.StoreId,
                     ProductId = item.ProductId,
-                    LotCode = item.LotCode ?? $"{order.Code}-{item.Product.Sku}",
-                    Quantity = item.Quantity,
+                    LotCode = round > 1 ? $"{lot}-D{round}" : lot,
+                    Quantity = quantity,
                     ReceivedAt = now,
                     ExpiresAt = now.Date.AddDays(days).AddHours(23).AddMinutes(59),
                 });
             }
         }
-        order.Status = PurchaseOrderStatus.Received;
+        order.Status = order.Items.All(i => i.Remaining == 0) ? PurchaseOrderStatus.Received : PurchaseOrderStatus.PartiallyReceived;
         order.ReceivedAt = now;
+        await db.SaveChangesAsync();
+        await tx.CommitAsync();
+        return new PurchaseResult(true, order, null);
+    }
+
+    /// <summary>
+    /// Kết thúc phiếu đang nhận dở khi nhà cung cấp không giao phần còn thiếu nữa: chốt theo số đã nhận
+    /// (tiền hàng tính lại theo số thực nhận), ghi lý do và người kết thúc. Phiếu chưa nhận gì thì dùng Huỷ.
+    /// </summary>
+    public async Task<PurchaseResult> CloseAsync(string orderId, string? reason, string? by)
+    {
+        await using var tx = await db.Database.BeginTransactionAsync();
+        var order = await db.PurchaseOrders.Include(p => p.Items).FirstOrDefaultAsync(p => p.Id == orderId);
+        if (order is null) return PurchaseResult.Fail("Không tìm thấy phiếu");
+        if (order.Status == PurchaseOrderStatus.Ordered) return PurchaseResult.Fail("Phiếu chưa nhận đợt nào, hãy dùng Huỷ phiếu");
+        if (order.Status != PurchaseOrderStatus.PartiallyReceived) return PurchaseResult.Fail("Chỉ kết thúc được phiếu đang nhận hàng dở");
+        var why = reason?.Trim() ?? "";
+        if (why.Length < 3) return PurchaseResult.Fail("Nhập lý do kết thúc phiếu, ví dụ: nhà cung cấp hết hàng");
+        if (why.Length > 200) return PurchaseResult.Fail("Lý do tối đa 200 ký tự");
+
+        order.Status = PurchaseOrderStatus.Closed;
+        order.ClosedReason = why;
+        order.ClosedBy = by;
+        order.ReceivedAt = DateTime.Now;
+        order.Total = order.Items.Sum(i => i.ReceivedQuantity * i.CostPrice);
         await db.SaveChangesAsync();
         await tx.CommitAsync();
         return new PurchaseResult(true, order, null);
@@ -163,7 +221,9 @@ public class PurchasingService(AppDbContext db)
     public async Task<PurchaseResult> CancelAsync(string orderId)
     {
         var order = await db.PurchaseOrders.FindAsync(orderId);
-        if (order is null || order.Status is PurchaseOrderStatus.Received or PurchaseOrderStatus.Cancelled)
+        if (order?.Status == PurchaseOrderStatus.PartiallyReceived)
+            return PurchaseResult.Fail("Phiếu đã nhận một phần hàng nên không huỷ được, hãy dùng Kết thúc phiếu");
+        if (order is null || order.Status is not (PurchaseOrderStatus.Draft or PurchaseOrderStatus.Ordered))
             return PurchaseResult.Fail("Phiếu đã nhập kho hoặc đã huỷ thì không huỷ được nữa");
         order.Status = PurchaseOrderStatus.Cancelled;
         await db.SaveChangesAsync();

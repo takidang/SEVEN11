@@ -18,8 +18,12 @@ public class Supplier
     public SupplierStatus Status { get; set; } = SupplierStatus.Active;
 }
 
-/// <summary>Nháp → Đã đặt hàng → Đã nhập kho; huỷ được khi chưa nhập kho.</summary>
-public enum PurchaseOrderStatus { Draft, Ordered, Received, Cancelled }
+/// <summary>
+/// Nháp → Đã đặt hàng → (Đang nhận hàng, nếu nhà cung cấp giao nhiều đợt) → Đã nhập kho. Còn thiếu mà nhà
+/// cung cấp không giao nữa thì Kết thúc phiếu. Huỷ được khi chưa nhận gì. Số của từng trạng thái cố định vì
+/// được lưu trong cơ sở dữ liệu: trạng thái mới luôn thêm vào cuối.
+/// </summary>
+public enum PurchaseOrderStatus { Draft = 0, Ordered = 1, Received = 2, Cancelled = 3, PartiallyReceived = 4, Closed = 5 }
 
 /// <summary>Phiếu nhập hàng của một cửa hàng từ một nhà cung cấp.</summary>
 public class PurchaseOrder
@@ -40,7 +44,11 @@ public class PurchaseOrder
     public DateTime CreatedAt { get; set; }
     /// <summary>Ngày nhà cung cấp hẹn giao.</summary>
     public DateTime? ExpectedAt { get; set; }
+    /// <summary>Lần nhận hàng gần nhất (đợt cuối, hoặc lúc kết thúc phiếu).</summary>
     public DateTime? ReceivedAt { get; set; }
+    /// <summary>Lý do kết thúc phiếu khi còn thiếu hàng, và người kết thúc.</summary>
+    public string? ClosedReason { get; set; }
+    public string? ClosedBy { get; set; }
 
     public List<PurchaseOrderItem> Items { get; set; } = [];
 }
@@ -52,7 +60,12 @@ public class PurchaseOrderItem
     public PurchaseOrder? PurchaseOrder { get; set; }
     public string ProductId { get; set; } = "";
     public Product? Product { get; set; }
+    /// <summary>Số lượng đặt.</summary>
     public int Quantity { get; set; }
+    /// <summary>Đã nhận qua các đợt, không vượt quá số đặt.</summary>
+    public int ReceivedQuantity { get; set; }
+    /// <summary>Còn thiếu so với số đặt.</summary>
+    public int Remaining => Quantity - ReceivedQuantity;
     /// <summary>Giá nhập một đơn vị.</summary>
     public int CostPrice { get; set; }
     /// <summary>Số lô in trên thùng, có với hàng có hạn dùng.</summary>

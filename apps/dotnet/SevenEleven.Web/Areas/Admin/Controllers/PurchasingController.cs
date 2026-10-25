@@ -8,7 +8,7 @@ using SevenEleven.Web.Infrastructure;
 
 namespace SevenEleven.Web.Areas.Admin.Controllers;
 
-/// <summary>Phiếu nhập hàng: lập nháp, gửi nhà cung cấp, nhận hàng vào kho, huỷ.</summary>
+/// <summary>Phiếu nhập hàng: lập nháp, gửi nhà cung cấp, nhận hàng vào kho (một hoặc nhiều đợt), kết thúc phiếu thiếu hàng, huỷ.</summary>
 [Authorize(AuthenticationSchemes = StaffAuth.Scheme, Roles = Roles.Managers)]
 public class PurchasingController(AppDbContext db, PurchasingService purchasing) : AdminController(db)
 {
@@ -62,8 +62,15 @@ public class PurchasingController(AppDbContext db, PurchasingService purchasing)
         var ids = order.Items.Select(i => i.ProductId).ToList();
         var stock = await Db.StockLevels.Where(s => s.StoreId == order.StoreId && ids.Contains(s.ProductId)).ToDictionaryAsync(s => s.ProductId);
         ViewBag.CreatedBy = (await Db.Employees.FindAsync(order.CreatedBy))?.FullName;
+        // Các đợt nhận hàng: nhật ký kho của phiếu, mỗi đợt ghi cùng một thời điểm.
+        var names = order.Items.ToDictionary(i => i.ProductId, i => i.Product?.Name ?? i.ProductId);
+        var rounds = (await Db.StockMovements.AsNoTracking()
+                .Where(m => m.StoreId == order.StoreId && m.Ref == order.Code && m.Kind == StockMovementKind.Receive).ToListAsync())
+            .GroupBy(m => m.At).OrderBy(g => g.Key)
+            .Select((g, n) => new ReceiptRound(n + 1, g.Key, g.First().By, g.Select(m => (names.GetValueOrDefault(m.ProductId, m.ProductId), m.Delta)).ToList()))
+            .ToList();
         ViewData["Title"] = $"Phiếu {order.Code}";
-        return View(new PurchaseDetailModel(order, catalog, stock, DateTime.Now));
+        return View(new PurchaseDetailModel(order, catalog, stock, DateTime.Now, rounds));
     }
 
     [HttpPost, ValidateAntiForgeryToken]
@@ -102,12 +109,34 @@ public class PurchasingController(AppDbContext db, PurchasingService purchasing)
         return RedirectToAction(nameof(Detail), new { id });
     }
 
+    /// <summary>Nhận một đợt hàng: số nhận đợt này của từng dòng gửi lên dạng qty[mã dòng].</summary>
     [HttpPost, ValidateAntiForgeryToken]
-    public async Task<IActionResult> Receive(string id)
+    public async Task<IActionResult> Receive(string id, Dictionary<int, int>? qty)
     {
         if (await LoadAsync(id) is null) return NotFound();
-        var result = await purchasing.ReceiveAsync(id, Staff.Name);
-        if (result.Ok) Toast($"Đã nhập kho phiếu {result.Order!.Code}: {result.Order.Items.Sum(i => i.Quantity)} sản phẩm");
+        var result = await purchasing.ReceiveAsync(id, qty ?? [], Staff.Name);
+        if (result.Ok)
+        {
+            var o = result.Order!;
+            var got = qty?.Values.Where(v => v > 0).Sum() ?? 0;
+            Toast(o.Status == PurchaseOrderStatus.Received
+                ? $"Đã nhận {got} sản phẩm. Phiếu {o.Code} đã nhận đủ và nhập kho xong"
+                : $"Đã nhận {got} sản phẩm vào kho. Phiếu {o.Code} còn thiếu {o.Items.Sum(i => i.Remaining)} sản phẩm, chờ đợt sau");
+        }
+        else Error(result.Error);
+        return RedirectToAction(nameof(Detail), new { id });
+    }
+
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> Close(string id, string? reason)
+    {
+        if (await LoadAsync(id) is null) return NotFound();
+        var result = await purchasing.CloseAsync(id, reason, Staff.Name);
+        if (result.Ok)
+        {
+            var o = result.Order!;
+            Toast($"Đã kết thúc phiếu {o.Code}: nhận {o.Items.Sum(i => i.ReceivedQuantity)}/{o.Items.Sum(i => i.Quantity)} sản phẩm, tiền hàng {Money.Format(o.Total)}");
+        }
         else Error(result.Error);
         return RedirectToAction(nameof(Detail), new { id });
     }
@@ -158,6 +187,9 @@ public class PurchasingController(AppDbContext db, PurchasingService purchasing)
 
 public record PurchaseListModel(List<PurchaseOrder> Orders, Dictionary<PurchaseOrderStatus, int> Counts, PurchaseOrderStatus? Status, DateTime Now, bool IsChain);
 
-public record PurchaseDetailModel(PurchaseOrder Order, List<Product> Catalog, Dictionary<string, StockLevel> Stock, DateTime Now);
+public record PurchaseDetailModel(PurchaseOrder Order, List<Product> Catalog, Dictionary<string, StockLevel> Stock, DateTime Now, List<ReceiptRound> Rounds);
+
+/// <summary>Một đợt nhận hàng của phiếu: đợt thứ mấy, lúc nào, ai nhận, từng mặt hàng nhận bao nhiêu.</summary>
+public record ReceiptRound(int Number, DateTime At, string? By, List<(string Name, int Quantity)> Lines);
 
 public record NewPurchaseModel(List<Supplier> Suppliers, List<Store> Stores, Dictionary<string, string> Categories, Dictionary<string, int> Shortages, string? StoreId);

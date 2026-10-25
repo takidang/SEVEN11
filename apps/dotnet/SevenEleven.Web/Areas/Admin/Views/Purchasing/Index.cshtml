@@ -15,7 +15,7 @@
     <div style="padding:16px">
         <nav class="seg" aria-label="Trạng thái phiếu">
             <a asp-action="Index" class="@(Model.Status is null ? "active" : null)">Tất cả<span class="n">@all</span></a>
-            @foreach (var st in Enum.GetValues<PurchaseOrderStatus>())
+            @foreach (var st in PurchasingService.StatusOrder)
             {
                 <a asp-action="Index" asp-route-status="@st" class="@(Model.Status == st ? "active" : null)">@Labels.Purchase(st)<span class="n">@Model.Counts.GetValueOrDefault(st)</span></a>
             }
@@ -33,7 +33,7 @@
                 <tbody>
                     @foreach (var p in Model.Orders)
                     {
-                        var late = p.Status == PurchaseOrderStatus.Ordered && p.ExpectedAt < Model.Now;
+                        var late = PurchasingService.AwaitingDelivery(p.Status) && p.ExpectedAt < Model.Now;
                         <tr>
                             <td><a class="code-link" asp-action="Detail" asp-route-id="@p.Id">@p.Code</a></td>
                             <td class="wrap">@p.Supplier?.Name</td>
@@ -44,6 +44,8 @@
                             <td>@p.CreatedAt.ToString("HH:mm dd/MM")</td>
                             <td class="@(late ? "neg" : null)">
                                 @if (p.Status == PurchaseOrderStatus.Received) { <text>Nhận @p.ReceivedAt?.ToString("HH:mm dd/MM")</text> }
+                                else if (p.Status == PurchaseOrderStatus.Closed) { <text>Kết thúc @p.ReceivedAt?.ToString("HH:mm dd/MM") · nhận @p.Items.Sum(i => i.ReceivedQuantity)/@p.Items.Sum(i => i.Quantity)</text> }
+                                else if (p.Status == PurchaseOrderStatus.PartiallyReceived) { <text>Đã nhận @p.Items.Sum(i => i.ReceivedQuantity)/@p.Items.Sum(i => i.Quantity) · hẹn @p.ExpectedAt?.ToString("HH:mm dd/MM")@(late ? " · trễ" : "")</text> }
                                 else if (p.Status == PurchaseOrderStatus.Ordered) { <text>Hẹn @p.ExpectedAt?.ToString("HH:mm dd/MM")@(late ? " · trễ" : "")</text> }
                             </td>
                         </tr>
