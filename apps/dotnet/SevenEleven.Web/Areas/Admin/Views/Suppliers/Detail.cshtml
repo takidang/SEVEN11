@@ -4,8 +4,10 @@
     var s = Model.Supplier;
     bool canManage = ViewBag.CanManage;
     var cats = PricingService.Split(s.CategoryIds);
-    var processing = Model.Orders.Count(o => o.Status is PurchaseOrderStatus.Draft or PurchaseOrderStatus.Ordered);
-    var received = Model.Orders.Where(o => o.Status == PurchaseOrderStatus.Received).Sum(o => (long)o.Total);
+    var processing = Model.Orders.Count(o => o.Status is PurchaseOrderStatus.Draft or PurchaseOrderStatus.Ordered or PurchaseOrderStatus.PartiallyReceived);
+    // Tiền hàng đã thực nhận: phiếu đã nhập kho, đã kết thúc (tiền tính theo số nhận) và phần đã nhận của phiếu đang nhận.
+    var received = Model.Orders.Where(o => o.Status is PurchaseOrderStatus.Received or PurchaseOrderStatus.Closed or PurchaseOrderStatus.PartiallyReceived)
+        .Sum(o => o.Items.Sum(i => (long)i.ReceivedQuantity * i.CostPrice));
 }
 <div class="page-head">
     <div>

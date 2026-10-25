@@ -489,4 +489,14 @@
       if (!d.contains(event.target)) d.removeAttribute("open");
     });
   });
+
+  // Phiếu nhập: điền nhanh cột "Nhận đợt này" (đủ phần còn thiếu, hoặc về 0 để chỉ nhập vài dòng).
+  document.querySelectorAll("[data-receive-fill]").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      var mode = btn.getAttribute("data-receive-fill");
+      document.querySelectorAll("[data-receive-qty]").forEach(function (input) {
+        input.value = mode === "max" ? input.getAttribute("max") : "0";
+      });
+    });
+  });
 })();

@@ -34,10 +34,11 @@ public class DashboardController(AppDbContext db, InventoryService inventory) : 
 
         var stock = Db.StockLevels.Where(s => s.Product!.IsActive);
         var batches = Db.InventoryBatches.Where(b => b.Quantity > 0 && b.ExpiresAt != null && b.ExpiresAt < now.AddHours(24));
-        var awaiting = Db.PurchaseOrders.Where(p => p.Status == PurchaseOrderStatus.Ordered);
+        var awaiting = Db.PurchaseOrders.Where(p => p.Status == PurchaseOrderStatus.Ordered || p.Status == PurchaseOrderStatus.PartiallyReceived);
         var monthStart = new DateTime(now.Year, now.Month, 1);
         var purchased = Db.PurchaseOrders.Where(p =>
-            (p.Status == PurchaseOrderStatus.Ordered || p.Status == PurchaseOrderStatus.Received) && (p.ReceivedAt ?? p.CreatedAt) >= monthStart);
+            (p.Status == PurchaseOrderStatus.Ordered || p.Status == PurchaseOrderStatus.PartiallyReceived ||
+             p.Status == PurchaseOrderStatus.Received || p.Status == PurchaseOrderStatus.Closed) && (p.ReceivedAt ?? p.CreatedAt) >= monthStart);
         var live = Db.Orders.Include(o => o.Store).Include(o => o.Customer).Include(o => o.Delivery)
             .Where(o => o.Channel == SalesChannel.Online && o.Status != OrderStatus.Completed && o.Status != OrderStatus.Cancelled);
         if (scope is not null)

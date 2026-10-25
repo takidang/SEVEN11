@@ -58,7 +58,9 @@ public static class Labels
     {
         PurchaseOrderStatus.Draft => "Nháp",
         PurchaseOrderStatus.Ordered => "Đã đặt hàng",
+        PurchaseOrderStatus.PartiallyReceived => "Đang nhận hàng",
         PurchaseOrderStatus.Received => "Đã nhập kho",
+        PurchaseOrderStatus.Closed => "Đã kết thúc",
         PurchaseOrderStatus.Cancelled => "Đã huỷ",
         _ => s.ToString(),
     };
@@ -85,7 +87,9 @@ public static class Labels
     {
         PurchaseOrderStatus.Draft => "neutral",
         PurchaseOrderStatus.Ordered => "info",
+        PurchaseOrderStatus.PartiallyReceived => "orange",
         PurchaseOrderStatus.Received => "fresh",
+        PurchaseOrderStatus.Closed => "neutral",
         _ => "danger",
     };
 

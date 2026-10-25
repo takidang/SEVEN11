@@ -3,9 +3,16 @@
 @{
     var o = Model.Order;
     var draft = o.Status == PurchaseOrderStatus.Draft;
+    var awaiting = PurchasingService.AwaitingDelivery(o.Status);
+    var showReceived = o.Status is not (PurchaseOrderStatus.Draft or PurchaseOrderStatus.Cancelled);
     string? createdBy = ViewBag.CreatedBy;
-    var late = o.Status == PurchaseOrderStatus.Ordered && o.ExpectedAt < Model.Now;
+    var late = awaiting && o.ExpectedAt < Model.Now;
     var have = o.Items.Select(i => i.ProductId).ToHashSet();
+    var ordered = o.Items.Sum(i => i.Quantity);
+    var got = o.Items.Sum(i => i.ReceivedQuantity);
+    var orderedValue = o.Items.Sum(i => (long)i.Quantity * i.CostPrice);
+    var gotValue = o.Items.Sum(i => (long)i.ReceivedQuantity * i.CostPrice);
+    var pct = ordered == 0 ? 0 : got * 100 / ordered;
 }
 <div class="page-head">
     <div>
@@ -20,12 +27,6 @@
                 <button class="btn btn-primary" type="submit" disabled="@(o.Items.Count == 0)">Gửi nhà cung cấp</button>
             </form>
         }
-        @if (o.Status == PurchaseOrderStatus.Ordered)
-        {
-            <form method="post" asp-action="Receive" asp-route-id="@o.Id" class="inline" data-confirm="Đã kiểm đủ hàng của phiếu @o.Code? Tồn kho sẽ cộng ngay.">
-                <button class="btn btn-primary" type="submit">Nhận hàng & nhập kho</button>
-            </form>
-        }
         @if (o.Status is PurchaseOrderStatus.Draft or PurchaseOrderStatus.Ordered)
         {
             <form method="post" asp-action="Cancel" asp-route-id="@o.Id" class="inline" data-confirm="Huỷ phiếu @o.Code?">
@@ -35,11 +36,19 @@
     </div>
 </div>
 
-@if (o.Status == PurchaseOrderStatus.Ordered)
+@if (awaiting)
 {
     <div class="flash @(late ? "flash-error" : "flash-warn")">
         @Icons.Svg("clock", 16) Nhà cung cấp hẹn giao @o.ExpectedAt?.ToString("HH:mm dd/MM")@(late ? " — đã trễ hẹn" : "").
-        Kiểm số lượng và hạn dùng khi nhận, rồi bấm "Nhận hàng & nhập kho".
+        @(o.Status == PurchaseOrderStatus.PartiallyReceived
+            ? "Phiếu đang nhận dở: nhập số nhận đợt này ở cột \"Nhận đợt này\", hoặc kết thúc phiếu nếu nhà cung cấp không giao nữa."
+            : "Kiểm số lượng và hạn dùng khi nhận. Giao thiếu thì sửa số ở cột \"Nhận đợt này\", phần còn lại nhận đợt sau.")
+    </div>
+}
+@if (o.Status == PurchaseOrderStatus.Closed)
+{
+    <div class="flash flash-warn" role="status">
+        Đã kết thúc lúc @o.ReceivedAt?.ToString("HH:mm dd/MM/yyyy")@(o.ClosedBy is null ? "" : $" bởi {o.ClosedBy}") khi còn thiếu @(ordered - got) sản phẩm. Lý do: @o.ClosedReason
     </div>
 }
 @if (o.Note is string note)
@@ -47,9 +56,21 @@
     <div class="flash flash-warn">Ghi chú: @note</div>
 }
 
+@if (showReceived)
+{
+    <section class="panel">
+        <div class="mini">
+            <div><small>Đã nhận</small><b>@got / @ordered sản phẩm</b><small>@pct% số đặt</small></div>
+            <div><small>Còn thiếu</small><b>@(ordered - got) sản phẩm</b><small>@o.Items.Count(i => i.Remaining > 0) mặt hàng chưa đủ</small></div>
+            <div><small>Tiền hàng thực nhận</small><b>@Money.Format(gotValue)</b><small>Đặt @Money.Format(orderedValue)</small></div>
+        </div>
+        <div class="meter" role="progressbar" aria-valuenow="@pct" aria-valuemin="0" aria-valuemax="100" aria-label="Tiến độ nhận hàng"><div style="width:@pct%"></div></div>
+    </section>
+}
+
 <div class="panel flush">
     <div class="panel-head pad">
-        <div><h2>@o.Items.Count mặt hàng · @Money.Format(o.Total)</h2><p>Giá nhập theo giá vốn hiện tại của từng mặt hàng</p></div>
+        <div><h2>@o.Items.Count mặt hàng · @Money.Format(orderedValue)</h2><p>Giá nhập theo giá vốn lúc lập phiếu@(o.Status == PurchaseOrderStatus.Closed ? $" · tiền hàng chốt theo số thực nhận: {Money.Format(o.Total)}" : "")</p></div>
         @if (draft)
         {
             <form method="post" asp-action="Suggest" asp-route-id="@o.Id">
@@ -65,7 +86,14 @@
     {
         <div class="table-wrap">
             <table class="table">
-                <thead><tr><th>Mặt hàng</th><th class="num">Tồn hiện tại</th><th class="num">Giá nhập</th><th class="num">Số lượng</th><th class="num">Thành tiền</th></tr></thead>
+                <thead>
+                    <tr>
+                        <th>Mặt hàng</th><th class="num">Tồn hiện tại</th><th class="num">Giá nhập</th><th class="num">@(draft ? "Số lượng" : "Đặt")</th>
+                        @if (showReceived) { <th class="num">Đã nhận</th><th class="num">Còn thiếu</th> }
+                        @if (awaiting) { <th class="num">Nhận đợt này</th> }
+                        <th class="num">Thành tiền</th>
+                    </tr>
+                </thead>
                 <tbody>
                     @foreach (var i in o.Items)
                     {
@@ -101,13 +129,56 @@
                                     @i.Quantity
                                 }
                             </td>
+                            @if (showReceived)
+                            {
+                                <td class="num">@i.ReceivedQuantity</td>
+                                <td class="num @(i.Remaining > 0 ? "state-low" : null)">@(i.Remaining > 0 ? i.Remaining.ToString() : "Đủ")</td>
+                            }
+                            @if (awaiting)
+                            {
+                                <td class="num">
+                                    @if (i.Remaining > 0)
+                                    {
+                                        <input class="input input-num" type="number" form="receive-form" name="qty[@i.Id]" min="0" max="@i.Remaining" step="1" value="@i.Remaining"
+                                               aria-label="Nhận đợt này: @i.Product?.Name" data-receive-qty />
+                                    }
+                                    else
+                                    {
+                                        <span class="muted">—</span>
+                                    }
+                                </td>
+                            }
                             <td class="num">@Money.Format(i.Quantity * i.CostPrice)</td>
                         </tr>
                     }
                 </tbody>
-                <tfoot><tr><td colspan="4">Tổng tiền hàng</td><td class="num">@Money.Format(o.Total)</td></tr></tfoot>
+                <tfoot><tr><td colspan="@(3 + (showReceived ? 2 : 0) + (awaiting ? 1 : 0))">Tổng tiền hàng theo số đặt</td><td></td><td class="num">@Money.Format(orderedValue)</td></tr></tfoot>
             </table>
         </div>
+    }
+    @if (awaiting && o.Items.Count > 0)
+    {
+        <div class="receive-bar">
+            <form method="post" asp-action="Receive" asp-route-id="@o.Id" id="receive-form" class="inline"
+                  data-confirm="Nhận đợt hàng này vào kho cửa hàng @o.Store?.Code? Tồn kho sẽ cộng ngay theo số ở cột Nhận đợt này.">
+                <button class="btn btn-primary" type="submit">Nhận hàng đợt này & nhập kho</button>
+            </form>
+            <button class="btn btn-sm" type="button" data-receive-fill="max">Điền đủ phần còn thiếu</button>
+            <button class="btn btn-sm" type="button" data-receive-fill="0">Đặt tất cả về 0</button>
+        </div>
+    }
+    @if (o.Status == PurchaseOrderStatus.PartiallyReceived)
+    {
+        <details class="close-po">
+            <summary>Nhà cung cấp không giao phần còn thiếu? <b>Kết thúc phiếu</b></summary>
+            <form method="post" asp-action="Close" asp-route-id="@o.Id" class="form"
+                  data-confirm="Kết thúc phiếu @o.Code với @got/@ordered sản phẩm đã nhận? Phần còn thiếu sẽ không nhận nữa, tiền hàng tính theo số thực nhận.">
+                <label class="field"><span>Lý do kết thúc</span>
+                    <input name="reason" maxlength="200" required placeholder="Ví dụ: Nhà cung cấp hết hàng, không giao bù" />
+                </label>
+                <div><button class="btn btn-danger" type="submit">Kết thúc phiếu</button></div>
+            </form>
+        </details>
     }
     @if (draft)
     {
@@ -126,3 +197,19 @@
         </form>
     }
 </div>
+
+@if (Model.Rounds.Count > 0)
+{
+    <section class="panel" id="cac-dot-nhan">
+        <div class="panel-head"><div><h2>Các đợt nhận hàng</h2><p>@Model.Rounds.Count đợt · mỗi đợt cộng tồn kho và ghi vào nhật ký kho</p></div></div>
+        <ul class="list-plain">
+            @foreach (var r in Model.Rounds)
+            {
+                <li style="display:grid;gap:4px;padding:8px 0;border-bottom:1px solid var(--line)">
+                    <b style="font-weight:600">Đợt @r.Number · @r.At.ToString("HH:mm dd/MM/yyyy")@(r.By is null ? "" : $" · {r.By}") · @r.Lines.Sum(l => l.Quantity) sản phẩm</b>
+                    <span class="muted small">@string.Join(" · ", r.Lines.Select(l => $"{l.Name} ×{l.Quantity}"))</span>
+                </li>
+            }
+        </ul>
+    </section>
+}
