@@ -24,6 +24,7 @@ Nút đầu tiên nằm trong khung "Flash sale hôm nay", ở tab khung giờ *
 
 **Xác nhận thêm (25/10):** `main` chưa có commit sửa. Chạy lúc 09:04 (trong giờ flash sale sáng) thì đạt 90/90,
 đúng như phân tích: lỗi chỉ xuất hiện khi chạy buổi chiều hoặc tối.
+Cùng ngày, cùng code trên `dev`: 09:30 đạt 90/90, 17:49 treo đúng chỗ này (1 kiểm tra hỏng / 74).
 
 **Cách sửa (đã thử: 90/90 đạt lúc 22/10 tối):**
 
