@@ -87,7 +87,8 @@ public static class MembershipService
     /// tụt hạng gần nhất thì thôi (lần tụt hạng đã kéo chi tiêu về mốc rồi). Còn trên mốc hạng hiện tại thì
     /// giữ hạng; xuống dưới mốc thì hạng đi theo chi tiêu.
     /// </summary>
-    public static void RemoveTierSpend(Customer customer, int amount, DateTime orderAt, DateTime? lastDropAt, DateTime at)
+    public static void RemoveTierSpend(Customer customer, int amount, DateTime orderAt, DateTime? lastDropAt, DateTime at,
+        string reason = "Đơn hàng bị huỷ, chi tiêu tích luỹ không còn đủ mốc")
     {
         if (lastDropAt is DateTime drop && orderAt < drop) return;
         customer.TierSpend = Math.Max(0, customer.TierSpend - Math.Max(0, amount));
@@ -96,7 +97,7 @@ public static class MembershipService
         customer.TierChanges.Add(new TierChange
         {
             CustomerId = customer.Id, At = at, From = customer.Tier, To = to,
-            Reason = "Đơn hàng bị huỷ, chi tiêu tích luỹ không còn đủ mốc",
+            Reason = reason,
         });
         customer.Tier = to;
         customer.TierSince = at;
