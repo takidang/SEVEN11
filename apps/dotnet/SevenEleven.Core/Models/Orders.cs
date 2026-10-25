@@ -42,6 +42,8 @@ public class Order
     public DeliveryInfo? Delivery { get; set; }
     public List<OrderItem> Items { get; set; } = [];
     public List<OrderEvent> Timeline { get; set; } = [];
+    /// <summary>Các lần khách trả hàng sau khi đơn hoàn thành.</summary>
+    public List<OrderReturn> Returns { get; set; } = [];
 
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }

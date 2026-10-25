@@ -8,6 +8,11 @@
     // Cột "Thành tiền" đã trừ giảm theo món; phần giảm còn lại (ưu đãi thành viên, mã) tính trên cả đơn.
     var goods = Model.Items.Sum(i => i.LineTotal);
     var orderDiscount = Model.Discount - Model.Items.Sum(i => i.Discount);
+    // Trả hàng: đã trả bao nhiêu mỗi dòng, đã hoàn bao nhiêu, còn hạn trả không.
+    var returned = ReturnService.Returned(Model.Returns);
+    var refunded = Model.Returns.Sum(r => r.Refund);
+    var canReturn = Model.Status == OrderStatus.Completed && now <= ReturnService.Deadline(Model)
+                    && Model.Items.Any(i => i.Quantity > returned.GetValueOrDefault(i.Id));
 }
 <div class="page-head">
     <div>
@@ -78,8 +83,89 @@
                 {
                     <div class="sum-row"><span>Tiền mặt</span><span class="tabular">Khách đưa @Money.Format(cash) · trả lại @Money.Format(Model.ChangeGiven ?? 0)</span></div>
                 }
+                @if (refunded > 0)
+                {
+                    <div class="sum-row" style="color:#b91c1c"><span>Đã hoàn do trả hàng (@Model.Returns.Count lần)</span><span class="tabular">−@Money.Format(refunded)</span></div>
+                    <div class="sum-row"><span>Thực thu sau trả hàng</span><span class="tabular">@Money.Format(Model.Total - refunded)</span></div>
+                }
             </div>
         </section>
+
+        @if (Model.Status == OrderStatus.Completed)
+        {
+            var deadline = ReturnService.Deadline(Model);
+            <section class="panel flush" id="tra-hang">
+                <div class="panel-head pad"><div><h2>Trả hàng</h2>
+                    <p>Nhận trả trong @ReturnService.Days ngày sau khi hoàn thành (hạn @deadline.ToString("HH:mm dd/MM/yyyy")). Hoàn tiền theo giá khách đã trả, phí giao không hoàn; thành viên bị trừ lại sao và chi tiêu xét hạng.</p></div></div>
+                @if (canReturn)
+                {
+                    <form method="post" asp-action="Return" class="form" data-confirm="Tạo phiếu trả hàng cho đơn @Model.Code? Tiền hoàn, kho, sao và hạng sẽ cập nhật ngay.">
+                        <input type="hidden" name="id" value="@Model.Id" />
+                        <div class="table-wrap">
+                            <table class="table">
+                                <thead><tr><th>Sản phẩm</th><th class="num">Đã mua</th><th class="num">Đã trả</th><th class="num">Hoàn / sản phẩm</th><th class="num">Trả lần này</th><th>Xử lý hàng trả</th></tr></thead>
+                                <tbody>
+                                    @foreach (var i in Model.Items)
+                                    {
+                                        var left = i.Quantity - returned.GetValueOrDefault(i.Id);
+                                        var fresh = i.Product?.ShelfLifeDays is not null;
+                                        <tr class="@(left == 0 ? "muted-row" : null)">
+                                            <td>@i.Name@if (fresh) { <span class="cell-sub">Hàng có hạn dùng: chỉ xuất huỷ</span> }@if (MembershipService.NonEligibleCategoryIds.Contains(i.Product?.CategoryId ?? "")) { <span class="cell-sub" data-no-spend>Đồ có cồn: không tính chi tiêu xét hạng</span> }</td>
+                                            <td class="num">@i.Quantity</td>
+                                            <td class="num">@returned.GetValueOrDefault(i.Id)</td>
+                                            <td class="num">≈ @Money.Format(ReturnService.RefundFor(Model, i, 1))</td>
+                                            <td class="num">
+                                                @if (left > 0)
+                                                {
+                                                    <input class="input input-num" type="number" name="qty[@i.Id]" min="0" max="@left" step="1" placeholder="0" aria-label="Số lượng trả @i.Name" data-return-qty />
+                                                }
+                                                else { <span class="muted">Đã trả hết</span> }
+                                            </td>
+                                            <td>
+                                                @if (left > 0)
+                                                {
+                                                    <select class="input" name="how[@i.Id]" aria-label="Xử lý hàng trả @i.Name">
+                                                        @if (!fresh) { <option value="@ReturnDisposition.Restock">Nhập lại kho</option> }
+                                                        <option value="@ReturnDisposition.Discard">Xuất huỷ</option>
+                                                    </select>
+                                                }
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="form-grid" style="padding:0 16px">
+                            <label class="field"><span>Lý do trả</span>
+                                <select name="reason" required>
+                                    <option value="">Chọn lý do</option>
+                                    @foreach (var r in ReturnService.Reasons) { <option>@r</option> }
+                                </select>
+                            </label>
+                            <label class="field"><span>Ghi chú <small class="help">bắt buộc nếu chọn "Khác"</small></span><input name="note" maxlength="200" /></label>
+                        </div>
+                        <div class="receive-bar"><button class="btn btn-danger" type="submit">Tạo phiếu trả hàng & hoàn tiền</button></div>
+                    </form>
+                }
+                else
+                {
+                    <p class="muted pad" style="margin:0;padding:0 16px 16px">@(now > deadline ? $"Đã quá hạn trả hàng ({ReturnService.Days} ngày sau khi hoàn thành)." : "Khách đã trả hết sản phẩm của đơn này.")</p>
+                }
+                @if (Model.Returns.Count > 0)
+                {
+                    <ul class="list-plain" style="padding:0 16px 8px">
+                        @foreach (var r in Model.Returns.OrderBy(r => r.At))
+                        {
+                            <li>
+                                <b style="font-weight:600">@r.Code · @r.At.ToString("HH:mm dd/MM/yyyy") · @r.By · hoàn @Money.Format(r.Refund)</b>
+                                <span class="cell-sub">@r.Reason@(r.Note is null ? "" : $" — {r.Note}")@(r.StarsTaken > 0 || r.SpendTaken > 0 ? $" · trừ {r.StarsTaken} sao, {Money.Format(r.SpendTaken)} chi tiêu xét hạng" : "")</span>
+                                <span class="cell-sub">@string.Join(" · ", r.Items.Select(x => $"{x.Name} ×{x.Quantity} ({ReturnService.Label(x.Disposition)})"))</span>
+                            </li>
+                        }
+                    </ul>
+                }
+            </section>
+        }
 
         @if (OrderFlow.CanCancel(Model.Status))
         {

@@ -35,6 +35,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<StockTransfer> StockTransfers => Set<StockTransfer>();
     public DbSet<StockTransferItem> StockTransferItems => Set<StockTransferItem>();
     public DbSet<StockTransferLot> StockTransferLots => Set<StockTransferLot>();
+    public DbSet<OrderReturn> OrderReturns => Set<OrderReturn>();
+    public DbSet<OrderReturnItem> OrderReturnItems => Set<OrderReturnItem>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -69,6 +71,10 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         b.Entity<StockTransferItem>().HasOne(i => i.Transfer).WithMany(t => t.Items).OnDelete(DeleteBehavior.Cascade);
         b.Entity<StockTransferItem>().HasOne(i => i.Product).WithMany().OnDelete(DeleteBehavior.Restrict);
         b.Entity<StockTransferLot>().HasOne(l => l.Item).WithMany(i => i.Lots).OnDelete(DeleteBehavior.Cascade);
+        // Trả hàng: tra theo đơn và theo mã phiếu.
+        b.Entity<OrderReturn>().HasIndex(x => x.Code).IsUnique();
+        b.Entity<OrderReturn>().HasOne(r => r.Order).WithMany(o => o.Returns).HasForeignKey(r => r.OrderId).OnDelete(DeleteBehavior.Cascade);
+        b.Entity<OrderReturnItem>().HasOne(i => i.Return).WithMany(r => r.Items).OnDelete(DeleteBehavior.Cascade);
 
         // Bảng điều khiển và báo cáo luôn lọc đơn theo khoảng thời gian, thường kèm cửa hàng.
         b.Entity<Order>().HasIndex(x => x.CreatedAt);

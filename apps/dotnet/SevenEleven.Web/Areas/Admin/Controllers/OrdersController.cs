@@ -10,7 +10,7 @@ namespace SevenEleven.Web.Areas.Admin.Controllers;
 /// Xử lý đơn: bảng đơn online đang chạy theo từng bước, danh sách mọi đơn có bộ lọc, chi tiết
 /// một đơn. Nút chuyển bước và huỷ đều đi qua OrderService để kho, sao và hạng luôn khớp.
 /// </summary>
-public class OrdersController(AppDbContext db, OrderService orders) : AdminController(db)
+public class OrdersController(AppDbContext db, OrderService orders, ReturnService returns) : AdminController(db)
 {
     private const int PageSize = 20;
 
@@ -102,6 +102,7 @@ public class OrdersController(AppDbContext db, OrderService orders) : AdminContr
             .Include(o => o.Delivery)
             .Include(o => o.Store)
             .Include(o => o.Customer)
+            .Include(o => o.Returns).ThenInclude(r => r.Items)
             .AsSplitQuery()
             .FirstOrDefaultAsync(o => o.Code == id);
         if (order is null || !CanTouch(order.StoreId))
@@ -125,6 +126,33 @@ public class OrdersController(AppDbContext db, OrderService orders) : AdminContr
         if (result.Ok) Toast($"Đơn {order.Code}: {Labels.Status(to).ToLower()}");
         else Error(result.Error);
         return Back(returnUrl, "/Admin/Orders");
+    }
+
+    /// <summary>
+    /// Trả hàng cho đơn đã hoàn thành: số trả mỗi dòng gửi lên dạng qty[mã dòng], cách xử lý dạng how[mã dòng]
+    /// (nhập lại kho / xuất huỷ).
+    /// </summary>
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> Return(string id, Dictionary<int, string>? qty, Dictionary<int, ReturnDisposition>? how, string? reason, string? note)
+    {
+        var order = await Db.Orders.AsNoTracking().FirstOrDefaultAsync(o => o.Id == id);
+        if (order is null || !CanTouch(order.StoreId)) return NotFound();
+        var lines = new List<ReturnLine>();
+        foreach (var (itemId, value) in qty ?? [])
+        {
+            if (string.IsNullOrWhiteSpace(value)) continue;
+            if (Text.ParseInt(value) is not int n) { Error("Số lượng trả chỉ nhập số nguyên"); return RedirectToAction(nameof(Detail), new { id = order.Code }); }
+            lines.Add(new ReturnLine(itemId, n, how?.GetValueOrDefault(itemId) ?? ReturnDisposition.Restock));
+        }
+        var result = await returns.CreateAsync(id, lines, reason, note, Staff.Name, DateTime.Now);
+        if (result.Ok)
+        {
+            var r = result.Return!;
+            Toast($"Đã tạo phiếu trả {r.Code}: {r.Items.Sum(i => i.Quantity)} sản phẩm, hoàn {Money.Format(r.Refund)}"
+                  + (r.StarsTaken > 0 || r.SpendTaken > 0 ? $" · trừ {r.StarsTaken} sao, {Money.Format(r.SpendTaken)} chi tiêu xét hạng" : ""));
+        }
+        else Error(result.Error);
+        return Redirect($"/Admin/Orders/Detail/{order.Code}#tra-hang");
     }
 
     [HttpPost, ValidateAntiForgeryToken]

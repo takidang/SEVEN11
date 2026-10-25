@@ -458,6 +458,93 @@ namespace SevenEleven.Core.Migrations
                     b.ToTable("OrderItems");
                 });
 
+            modelBuilder.Entity("SevenEleven.Core.Models.OrderReturn", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("At")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("By")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Note")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("OrderId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Refund")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("SpendTaken")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("StarsTaken")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("StoreId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Code")
+                        .IsUnique();
+
+                    b.HasIndex("OrderId");
+
+                    b.ToTable("OrderReturns");
+                });
+
+            modelBuilder.Entity("SevenEleven.Core.Models.OrderReturnItem", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Disposition")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("OrderItemId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("ProductId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Quantity")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Refund")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("ReturnId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ReturnId");
+
+                    b.ToTable("OrderReturnItems");
+                });
+
             modelBuilder.Entity("SevenEleven.Core.Models.PriceChange", b =>
                 {
                     b.Property<int>("Id")
@@ -1312,6 +1399,28 @@ namespace SevenEleven.Core.Migrations
                     b.Navigation("Product");
                 });
 
+            modelBuilder.Entity("SevenEleven.Core.Models.OrderReturn", b =>
+                {
+                    b.HasOne("SevenEleven.Core.Models.Order", "Order")
+                        .WithMany("Returns")
+                        .HasForeignKey("OrderId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Order");
+                });
+
+            modelBuilder.Entity("SevenEleven.Core.Models.OrderReturnItem", b =>
+                {
+                    b.HasOne("SevenEleven.Core.Models.OrderReturn", "Return")
+                        .WithMany("Items")
+                        .HasForeignKey("ReturnId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Return");
+                });
+
             modelBuilder.Entity("SevenEleven.Core.Models.PriceChange", b =>
                 {
                     b.HasOne("SevenEleven.Core.Models.Product", "Product")
@@ -1554,7 +1663,14 @@ namespace SevenEleven.Core.Migrations
 
                     b.Navigation("Items");
 
+                    b.Navigation("Returns");
+
                     b.Navigation("Timeline");
+                });
+
+            modelBuilder.Entity("SevenEleven.Core.Models.OrderReturn", b =>
+                {
+                    b.Navigation("Items");
                 });
 
             modelBuilder.Entity("SevenEleven.Core.Models.Product", b =>

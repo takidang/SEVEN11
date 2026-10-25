@@ -89,5 +89,5 @@ Chú thích: ✅ xong · 🚧 đang làm · ⏳ chưa làm
   tiền hàng chốt theo số thực nhận. `feat/partial-receiving`
 - ✅ G6. Chuyển kho giữa các cửa hàng: bên gửi trừ kho, bên nhận xác nhận thì cộng kho, giữ hạn dùng của lô (lấy lô còn hạn,
   hết hạn sớm nhất trước); huỷ khi còn trên đường thì hàng về lại. `feat/stock-transfer`
-- ⏳ G7. Trả hàng cho đơn đã hoàn thành trong 7 ngày: nhập lại kho hoặc xuất huỷ, hoàn tiền, trừ lại sao và
-  chi tiêu xét hạng. `feat/order-returns`
+- ✅ G7. Trả hàng cho đơn đã hoàn thành trong 7 ngày: nhập lại kho hoặc xuất huỷ (hàng có hạn dùng chỉ xuất huỷ), hoàn tiền theo
+  giá khách đã trả (chia giảm giá chung theo tỉ lệ, phí giao không hoàn), trừ lại sao và chi tiêu xét hạng. `feat/order-returns`

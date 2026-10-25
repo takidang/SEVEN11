@@ -45,6 +45,10 @@ public enum StockMovementKind
     TransferOut,
     /// <summary>Nhận hàng chuyển kho (hoặc hàng về lại khi huỷ phiếu chuyển).</summary>
     TransferIn,
+    /// <summary>Khách trả hàng, nhập lại kho.</summary>
+    ReturnRestock,
+    /// <summary>Khách trả hàng, xuất huỷ (tồn không đổi, chỉ ghi lại).</summary>
+    ReturnDiscard,
 }
 
 /// <summary>
