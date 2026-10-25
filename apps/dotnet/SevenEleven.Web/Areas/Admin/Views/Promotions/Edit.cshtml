@@ -142,7 +142,7 @@
 
     <div class="form-section">
         <h3>Thời gian & giới hạn</h3>
-        <div class="form-grid" style="grid-template-columns:repeat(3,minmax(0,1fr))">
+        <div class="form-grid cols-3">
             <label class="field"><span>Bắt đầu</span><input type="date" name="StartDate" value="@i.StartDate?.ToString("yyyy-MM-dd")" class="@Forms.Invalid(e, "StartDate")" />@Forms.Error(e, "StartDate")</label>
             <label class="field"><span>Kết thúc</span><input type="date" name="EndDate" value="@i.EndDate?.ToString("yyyy-MM-dd")" class="@Forms.Invalid(e, "EndDate")" />@Forms.Error(e, "EndDate")</label>
             <label class="field"><span>Giới hạn lượt dùng</span><span class="suffix"><input name="UsageLimit" value="@i.UsageLimit" inputmode="numeric" placeholder="Không giới hạn" class="@Forms.Invalid(e, "UsageLimit")" /><span class="unit">lượt</span></span>@Forms.Error(e, "UsageLimit")</label>

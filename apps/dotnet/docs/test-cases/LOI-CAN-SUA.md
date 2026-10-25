@@ -4,9 +4,22 @@ Người ghi: Tài Đặng (tester). Cập nhật: 25/10/2026. Phạm vi: bản 
 
 | # | Mức | Lỗi | Ai sửa | Trạng thái |
 | --- | --- | --- | --- | --- |
-| 1 | Cao | `e2e/storefront-flow.cjs` treo nếu chạy sau giờ flash sale sáng | Phát | Chưa sửa |
-| 2 | Trung bình | Bộ e2e hỏng dần nếu chạy nhiều lần trên cùng dữ liệu | Phát | Chưa sửa |
-| 3 | Thấp | README chưa nói rõ cách chạy trên Windows | Phát | Gợi ý |
+| 1 | Cao | `e2e/storefront-flow.cjs` treo nếu chạy sau giờ flash sale sáng | Phát | Đã sửa 25/10 |
+| 2 | Trung bình | Bộ e2e hỏng dần nếu chạy nhiều lần trên cùng dữ liệu | Phát | Đã sửa 25/10 |
+| 3 | Thấp | README chưa nói rõ cách chạy trên Windows | Phát | Đã thêm 25/10 |
+| 4 | Cao | Bỏ tích "Sản phẩm mới" / "Đang bán" ở form sản phẩm, "Đang hợp tác" ở form nhà cung cấp rồi lưu: vẫn lưu là bật | Phát | Đã sửa 25/10 |
+| 5 | Trung bình | Khu quản lý trên điện thoại: trang ít nội dung (Chuyển kho) bị kéo dãn thanh menu trên cùng cao gần 200px | Phát | Đã sửa 25/10 |
+| 6 | Thấp | Sửa sản phẩm: "Lịch sử giá" lúc trống thì câu thông báo dính sát mép khung; ba ô giá không xếp dọc trên điện thoại | Phát | Đã sửa 25/10 |
+| 7 | Thấp | Chi tiết đơn, mục Trả hàng trên điện thoại: cột tên món quá hẹp, tên vỡ từng chữ | Phát | Đã sửa 25/10 |
+
+## Đã sửa (25/10)
+
+- #1: dòng bấm nút "+" chỉ chọn nút đang hiện (`.qa-plus:visible`).
+- #2: kiểm tra tab Tổng quan đọc hạng đang hiện trên đầu trang tài khoản thay vì cố định "Vàng". `run-all.sh` vốn đã tạo dữ liệu mới mỗi vòng nên chỉ dính khi chạy lẻ trên cùng dữ liệu.
+- #3: README thêm dòng cho Windows.
+- #4: ô tích tắt thì trình duyệt không gửi gì, trong khi form để mặc định "bật". Thêm ô ẩn `false` sau mỗi ô tích; `e2e/admin-flows.cjs` có thêm kiểm tra bỏ tích rồi lưu.
+- #5: `.shell` trên màn nhỏ dùng `grid-template-rows: auto minmax(0, 1fr)` để phần thừa chiều cao dồn cho nội dung.
+- #6, #7: dùng kiểu `.empty` chung; lưới giá đổi sang lớp `cols-3` (về 1 cột dưới 760px); bảng trả hàng có `min-width` cho cột tên.
 
 ## 1. `storefront-flow.cjs` treo khi chạy sau giờ flash sale sáng
 

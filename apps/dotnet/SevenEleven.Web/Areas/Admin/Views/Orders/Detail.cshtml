@@ -102,7 +102,7 @@
                     <form method="post" asp-action="Return" class="form" data-confirm="Tạo phiếu trả hàng cho đơn @Model.Code? Tiền hoàn, kho, sao và hạng sẽ cập nhật ngay.">
                         <input type="hidden" name="id" value="@Model.Id" />
                         <div class="table-wrap">
-                            <table class="table">
+                            <table class="table return-table">
                                 <thead><tr><th>Sản phẩm</th><th class="num">Đã mua</th><th class="num">Đã trả</th><th class="num">Hoàn / sản phẩm</th><th class="num">Trả lần này</th><th>Xử lý hàng trả</th></tr></thead>
                                 <tbody>
                                     @foreach (var i in Model.Items)

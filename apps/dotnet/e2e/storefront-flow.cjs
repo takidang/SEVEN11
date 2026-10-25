@@ -183,7 +183,10 @@ const fmtPhone = p => `${p.slice(0, 4)} ${p.slice(4, 7)} ${p.slice(7)}`;
     check('demo button fills form', (await d.inputValue('#signin-phone')) === '0901234567' && (await d.inputValue('#signin-password')) === '123456');
     await Promise.all([d.waitForNavigation(), d.click('.auth-form button[type=submit]')]);
     check('demo sign in', d.url().endsWith('/tai-khoan') && (await text(d, '.account-head')).includes('Trần Thu Hà'), d.url());
-    const tabs = { 'tong-quan': 'Quyền lợi hạng Vàng', hang: 'Lịch sử hạng', 'sao-vang': 'Đổi sao lấy voucher', 'don-hang': 'Đơn hàng', 'dia-chi': 'Sổ địa chỉ', 'thong-tin': 'Thông tin cá nhân' };
+    // Hạng của khách demo đổi theo số đơn các lần chạy trước (LOI-CAN-SUA #2): lấy hạng đang hiện trên đầu trang.
+    await d.goto(`${BASE}/tai-khoan`);
+    const tierNow = (await d.locator('.account-head .tier-chip').first().innerText()).trim();
+    const tabs = { 'tong-quan': `Quyền lợi hạng ${tierNow}`, hang: 'Lịch sử hạng', 'sao-vang': 'Đổi sao lấy voucher', 'don-hang': 'Đơn hàng', 'dia-chi': 'Sổ địa chỉ', 'thong-tin': 'Thông tin cá nhân' };
     for (const [tab, expect] of Object.entries(tabs)) {
       await d.goto(`${BASE}/tai-khoan?tab=${tab}`);
       const main = await text(d, 'main');
@@ -328,7 +331,8 @@ const fmtPhone = p => `${p.slice(0, 4)} ${p.slice(4, 7)} ${p.slice(7)}`;
     check('empty cart mentions attached code', (await text(g, 'main')).includes('Mã CHAOBAN đã gắn sẵn'));
     await g.goto(BASE + '/khuyen-mai');
     check('guest sees member-code hint', (await text(g, '#ma-giam-gia')).includes('Đăng nhập để dùng mã thành viên'));
-    await g.locator('.pcard .qa-plus').first().click();
+    // Chỉ nút đang hiện: ngoài giờ flash sale sáng, tab khung sáng bị ẩn (LOI-CAN-SUA #1).
+    await g.locator('.pcard .qa-plus:visible').first().click();
     await toastText(g);
     await g.goto(BASE + '/gio-hang');
     const gm = await text(g, 'main');

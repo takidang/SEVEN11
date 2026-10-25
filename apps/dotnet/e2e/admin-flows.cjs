@@ -63,6 +63,13 @@ const shot = async (page, name) => { if (OUT) await page.screenshot({ path: `${O
   ok(/sản phẩm/i.test(await flash(admin)), `thêm sản phẩm: ${await flash(admin)} ${(await errors(admin)).join(' | ')}`);
   await admin.goto(BASE + '/Admin/Products?q=' + encodeURIComponent(productName));
   ok((await admin.locator(`text=${productName}`).count()) > 0, 'sản phẩm mới có trong danh sách');
+  // Bỏ tích "Sản phẩm mới" rồi lưu phải lưu là tắt (ô tích tắt không gửi gì, trước đây máy chủ giữ mặc định bật).
+  await Promise.all([admin.waitForNavigation(), admin.locator('tr', { hasText: productName }).locator('a[href*="/Products/Edit/"]').first().click()]);
+  const editUrl = admin.url();
+  await admin.locator('input[name=IsNew][type=checkbox]').uncheck();
+  await submit(admin, 'form[data-product-form]');
+  await admin.goto(editUrl);
+  ok(!(await admin.locator('input[name=IsNew][type=checkbox]').isChecked()), 'bỏ tích "Sản phẩm mới" thì lưu là tắt');
 
   // ---------------------------------------------------------------- khuyến mãi
   await admin.goto(BASE + '/Admin/Promotions/Edit');

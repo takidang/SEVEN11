@@ -103,7 +103,7 @@ else
         <div class="form-section">
             <h3>Giá</h3>
             <p>Số nguyên, đơn vị đồng. Giá gốc chỉ nhập khi sản phẩm đang giảm giá.</p>
-            <div class="form-grid" style="grid-template-columns:repeat(3,minmax(0,1fr))">
+            <div class="form-grid cols-3">
                 <label class="field"><span>Giá bán</span><span class="suffix"><input name="Price" value="@i.Price" inputmode="numeric" placeholder="0" class="@Forms.Invalid(e, "Price")" data-price /><span class="unit">₫</span></span>@Forms.Error(e, "Price")</label>
                 <label class="field"><span>Giá gốc</span><span class="suffix"><input name="CompareAtPrice" value="@i.CompareAtPrice" inputmode="numeric" placeholder="Không giảm" class="@Forms.Invalid(e, "CompareAtPrice")" data-compare /><span class="unit">₫</span></span>@Forms.Error(e, "CompareAtPrice")</label>
                 <label class="field"><span>Giá vốn</span><span class="suffix"><input name="CostPrice" value="@i.CostPrice" inputmode="numeric" placeholder="0" class="@Forms.Invalid(e, "CostPrice")" data-cost /><span class="unit">₫</span></span>@Forms.Error(e, "CostPrice")</label>
@@ -144,9 +144,10 @@ else
 
         <div class="form-section">
             <h3>Hiển thị & bán hàng</h3>
-            <label class="switch-row"><input type="checkbox" name="IsActive" value="true" checked="@i.IsActive" /><span><b>Đang bán</b><small>Tắt để ngừng bán trên web và tại quầy. Tồn kho vẫn được giữ.</small></span></label>
-            <label class="switch-row"><input type="checkbox" name="IsNew" value="true" checked="@i.IsNew" /><span><b>Sản phẩm mới</b><small>Gắn nhãn MỚI trên thẻ sản phẩm.</small></span></label>
-            <label class="switch-row"><input type="checkbox" name="AgeRestricted" value="true" checked="@i.AgeRestricted" data-age-box /><span><b>Giới hạn 18+</b><small>Yêu cầu xác nhận tuổi khi thêm vào giỏ hoặc bán tại quầy.</small></span></label>
+            @* Ô tích đang tắt thì trình duyệt không gửi gì, nên mỗi ô có thêm ô ẩn "false" đứng sau. *@
+            <label class="switch-row"><input type="checkbox" name="IsActive" value="true" checked="@i.IsActive" /><input type="hidden" name="IsActive" value="false" /><span><b>Đang bán</b><small>Tắt để ngừng bán trên web và tại quầy. Tồn kho vẫn được giữ.</small></span></label>
+            <label class="switch-row"><input type="checkbox" name="IsNew" value="true" checked="@i.IsNew" /><input type="hidden" name="IsNew" value="false" /><span><b>Sản phẩm mới</b><small>Gắn nhãn MỚI trên thẻ sản phẩm.</small></span></label>
+            <label class="switch-row"><input type="checkbox" name="AgeRestricted" value="true" checked="@i.AgeRestricted" data-age-box /><input type="hidden" name="AgeRestricted" value="false" /><span><b>Giới hạn 18+</b><small>Yêu cầu xác nhận tuổi khi thêm vào giỏ hoặc bán tại quầy.</small></span></label>
         </div>
 
         <div class="form-actions">
@@ -196,7 +197,7 @@ else
         <div class="panel-head pad"><div><h2>Lịch sử giá</h2><p>Mỗi lần đổi giá bán hoặc giá vốn: ai đổi, lúc nào. Mới nhất ở trên.</p></div></div>
         @if (Model.PriceHistory.Count == 0)
         {
-            <p class="muted pad" style="margin:0">Chưa đổi giá lần nào kể từ khi có lịch sử giá. Giá hiện tại: @Money.Format(p.Price), giá vốn @Money.Format(p.CostPrice).</p>
+            <p class="empty">Chưa đổi giá lần nào kể từ khi có lịch sử giá. Giá hiện tại: @Money.Format(p.Price), giá vốn @Money.Format(p.CostPrice).</p>
         }
         else
         {

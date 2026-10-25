@@ -38,7 +38,8 @@
             </div>
             @Forms.Error(e, "CategoryIds")
         </div>
-        <label class="switch-row"><input type="checkbox" name="IsActive" value="true" checked="@i.IsActive" /><span><b>Đang hợp tác</b><small>Tắt để ngừng đặt hàng: nhà cung cấp không còn xuất hiện khi tạo phiếu nhập mới.</small></span></label>
+        @* Ô tích đang tắt thì trình duyệt không gửi gì, nên mỗi ô có thêm ô ẩn "false" đứng sau. *@
+        <label class="switch-row"><input type="checkbox" name="IsActive" value="true" checked="@i.IsActive" /><input type="hidden" name="IsActive" value="false" /><span><b>Đang hợp tác</b><small>Tắt để ngừng đặt hàng: nhà cung cấp không còn xuất hiện khi tạo phiếu nhập mới.</small></span></label>
     </div>
     <div class="form-actions">
         <a class="btn" asp-action="@(isNew ? "Index" : "Detail")" asp-route-id="@i.Id">Huỷ</a>
