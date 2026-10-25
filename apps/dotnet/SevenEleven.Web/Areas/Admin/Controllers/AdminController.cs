@@ -77,6 +77,10 @@ public abstract class AdminController(AppDbContext db) : Controller
             ViewBag.Stores = stores;
             ViewBag.ScopeStoreId = scope;
             ViewBag.ScopeStore = stores.FirstOrDefault(s => s.Id == scope);
+            // Phiếu chuyển kho đang trên đường tới cửa hàng đang xem (cả chuỗi với quản trị): số trên menu.
+            ViewBag.IncomingTransfers = Permissions.CanView(staff.Role, "Transfers")
+                ? await Db.StockTransfers.CountAsync(t => t.Status == StockTransferStatus.InTransit && (scope == null || t.ToStoreId == scope))
+                : 0;
             ViewBag.PendingCount = await Db.Orders.CountAsync(o =>
                 o.Channel == SalesChannel.Online && o.Status == OrderStatus.Pending && (scope == null || o.StoreId == scope));
         }

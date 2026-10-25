@@ -53,7 +53,9 @@ public class InventoryService(AppDbContext db)
         StockMovementKind.Receive => "Nhập hàng",
         StockMovementKind.Adjust => "Điều chỉnh",
         StockMovementKind.Stocktake => "Cân bằng kiểm kê",
-        _ => "Xuất huỷ",
+        StockMovementKind.Discard => "Xuất huỷ",
+        StockMovementKind.TransferOut => "Chuyển kho đi",
+        _ => "Nhận chuyển kho",
     };
 
     private async Task<StockLevel> LevelAsync(string storeId, string productId)

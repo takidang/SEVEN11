@@ -85,7 +85,9 @@ Chú thích: ✅ xong · 🚧 đang làm · ⏳ chưa làm
   đầu; quản lý chỉ xem cũng thấy lịch sử. `feat/price-history`
 - ✅ G4. Tải ảnh sản phẩm lên (jpg, png, webp tối đa 2 MB) thay vì dán link; kiểm tra loại ảnh theo nội dung file,
   ảnh cũ đã tải lên bị dọn khi đổi ảnh; vẫn dán link được. `feat/product-image-upload`
-- ⏳ G5. Phiếu nhập nhận thiếu, nhận nhiều đợt, có nút kết thúc phiếu. `feat/partial-receiving`
-- ⏳ G6. Chuyển kho giữa các cửa hàng: bên gửi trừ kho, bên nhận xác nhận thì cộng kho, giữ hạn dùng của lô. `feat/stock-transfer`
+- ✅ G5. Phiếu nhập nhận thiếu, nhận nhiều đợt (mỗi đợt một lô riêng, không nhận quá số đặt), có nút kết thúc phiếu kèm lý do,
+  tiền hàng chốt theo số thực nhận. `feat/partial-receiving`
+- ✅ G6. Chuyển kho giữa các cửa hàng: bên gửi trừ kho, bên nhận xác nhận thì cộng kho, giữ hạn dùng của lô (lấy lô còn hạn,
+  hết hạn sớm nhất trước); huỷ khi còn trên đường thì hàng về lại. `feat/stock-transfer`
 - ⏳ G7. Trả hàng cho đơn đã hoàn thành trong 7 ngày: nhập lại kho hoặc xuất huỷ, hoàn tiền, trừ lại sao và
   chi tiêu xét hạng. `feat/order-returns`

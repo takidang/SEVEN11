@@ -911,6 +911,115 @@ namespace SevenEleven.Core.Migrations
                     b.ToTable("StockMovements");
                 });
 
+            modelBuilder.Entity("SevenEleven.Core.Models.StockTransfer", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("CancelledAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("CancelledBy")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("FromStoreId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Note")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("ReceivedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ReceivedBy")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("ToStoreId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Code")
+                        .IsUnique();
+
+                    b.HasIndex("FromStoreId", "CreatedAt");
+
+                    b.HasIndex("ToStoreId", "Status");
+
+                    b.ToTable("StockTransfers");
+                });
+
+            modelBuilder.Entity("SevenEleven.Core.Models.StockTransferItem", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("ProductId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Quantity")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("TransferId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProductId");
+
+                    b.HasIndex("TransferId");
+
+                    b.ToTable("StockTransferItems");
+                });
+
+            modelBuilder.Entity("SevenEleven.Core.Models.StockTransferLot", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("ExpiresAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("ItemId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("LotCode")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Quantity")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("ReceivedAt")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ItemId");
+
+                    b.ToTable("StockTransferLots");
+                });
+
             modelBuilder.Entity("SevenEleven.Core.Models.StocktakeCount", b =>
                 {
                     b.Property<int>("Id")
@@ -1339,6 +1448,55 @@ namespace SevenEleven.Core.Migrations
                     b.Navigation("Store");
                 });
 
+            modelBuilder.Entity("SevenEleven.Core.Models.StockTransfer", b =>
+                {
+                    b.HasOne("SevenEleven.Core.Models.Store", "FromStore")
+                        .WithMany()
+                        .HasForeignKey("FromStoreId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("SevenEleven.Core.Models.Store", "ToStore")
+                        .WithMany()
+                        .HasForeignKey("ToStoreId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("FromStore");
+
+                    b.Navigation("ToStore");
+                });
+
+            modelBuilder.Entity("SevenEleven.Core.Models.StockTransferItem", b =>
+                {
+                    b.HasOne("SevenEleven.Core.Models.Product", "Product")
+                        .WithMany()
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("SevenEleven.Core.Models.StockTransfer", "Transfer")
+                        .WithMany("Items")
+                        .HasForeignKey("TransferId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Product");
+
+                    b.Navigation("Transfer");
+                });
+
+            modelBuilder.Entity("SevenEleven.Core.Models.StockTransferLot", b =>
+                {
+                    b.HasOne("SevenEleven.Core.Models.StockTransferItem", "Item")
+                        .WithMany("Lots")
+                        .HasForeignKey("ItemId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Item");
+                });
+
             modelBuilder.Entity("SevenEleven.Core.Models.StocktakeCount", b =>
                 {
                     b.HasOne("SevenEleven.Core.Models.Product", "Product")
@@ -1409,6 +1567,16 @@ namespace SevenEleven.Core.Migrations
             modelBuilder.Entity("SevenEleven.Core.Models.PurchaseOrder", b =>
                 {
                     b.Navigation("Items");
+                });
+
+            modelBuilder.Entity("SevenEleven.Core.Models.StockTransfer", b =>
+                {
+                    b.Navigation("Items");
+                });
+
+            modelBuilder.Entity("SevenEleven.Core.Models.StockTransferItem", b =>
+                {
+                    b.Navigation("Lots");
                 });
 
             modelBuilder.Entity("SevenEleven.Core.Models.Store", b =>

@@ -32,6 +32,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<StockMovement> StockMovements => Set<StockMovement>();
     public DbSet<StocktakeCount> StocktakeCounts => Set<StocktakeCount>();
     public DbSet<PriceChange> PriceChanges => Set<PriceChange>();
+    public DbSet<StockTransfer> StockTransfers => Set<StockTransfer>();
+    public DbSet<StockTransferItem> StockTransferItems => Set<StockTransferItem>();
+    public DbSet<StockTransferLot> StockTransferLots => Set<StockTransferLot>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -57,6 +60,15 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         b.Entity<PurchaseOrder>().HasIndex(x => x.Code).IsUnique();
         // Trang sửa sản phẩm đọc lịch sử giá của một sản phẩm, mới nhất trước.
         b.Entity<PriceChange>().HasIndex(x => new { x.ProductId, x.At });
+        // Chuyển kho: tra phiếu theo mã, theo cửa hàng nhận (chờ nhận) và cửa hàng gửi.
+        b.Entity<StockTransfer>().HasIndex(x => x.Code).IsUnique();
+        b.Entity<StockTransfer>().HasIndex(x => new { x.ToStoreId, x.Status });
+        b.Entity<StockTransfer>().HasIndex(x => new { x.FromStoreId, x.CreatedAt });
+        b.Entity<StockTransfer>().HasOne(t => t.FromStore).WithMany().HasForeignKey(t => t.FromStoreId).OnDelete(DeleteBehavior.Restrict);
+        b.Entity<StockTransfer>().HasOne(t => t.ToStore).WithMany().HasForeignKey(t => t.ToStoreId).OnDelete(DeleteBehavior.Restrict);
+        b.Entity<StockTransferItem>().HasOne(i => i.Transfer).WithMany(t => t.Items).OnDelete(DeleteBehavior.Cascade);
+        b.Entity<StockTransferItem>().HasOne(i => i.Product).WithMany().OnDelete(DeleteBehavior.Restrict);
+        b.Entity<StockTransferLot>().HasOne(l => l.Item).WithMany(i => i.Lots).OnDelete(DeleteBehavior.Cascade);
 
         // Bảng điều khiển và báo cáo luôn lọc đơn theo khoảng thời gian, thường kèm cửa hàng.
         b.Entity<Order>().HasIndex(x => x.CreatedAt);

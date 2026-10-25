@@ -28,7 +28,7 @@ public static class Permissions
     {
         (Core.Models.StaffRole.Admin, _) => Access.Manage,
         (Core.Models.StaffRole.Manager, "Dashboard" or "Products" or "Suppliers" or "Customers" or "Promotions" or "Stores" or "Reports") => Access.View,
-        (Core.Models.StaffRole.Manager, "Pos" or "Orders" or "Stock" or "Purchasing" or "Staff") => Access.Manage,
+        (Core.Models.StaffRole.Manager, "Pos" or "Orders" or "Stock" or "Transfers" or "Purchasing" or "Staff") => Access.Manage,
         (Core.Models.StaffRole.Cashier, "Pos" or "Orders") => Access.Manage,
         (Core.Models.StaffRole.Cashier, "Customers") => Access.View,
         _ => Access.None,

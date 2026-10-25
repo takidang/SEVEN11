@@ -28,6 +28,7 @@ builder.Services.AddScoped<PromotionAdminService>();
 builder.Services.AddScoped<ChainAdminService>();
 builder.Services.AddScoped<CustomerAdminService>();
 builder.Services.AddScoped<PasswordService>();
+builder.Services.AddScoped<StockTransferService>();
 builder.Services.AddSingleton<OtpService>();
 builder.Services.AddHostedService<MembershipReviewJob>();
 builder.Services.AddStorefront();
